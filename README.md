@@ -20,7 +20,7 @@
 Windows에서 아이콘이 포함된 실행 파일을 만듭니다. 패키지를 만드는 PC에는 JDK 21 이상이 필요하고, 패키지에 Java 실행 환경이 함께 들어가므로 실행하는 PC에는 Java가 없어도 됩니다.
 
 ```bash
-gradlew.bat :tetris:jpackage
+.\gradlew.bat :tetris:jpackage
 ```
 
 `tetris/build/jpackage/Tetris/Tetris.exe`를 더블클릭하면 실행됩니다.
@@ -32,7 +32,7 @@ JDK 21 이상이 필요합니다.
 
 ```bash
 # Windows
-gradlew.bat :tetris:run
+.\gradlew.bat :tetris:run
 
 # macOS / Linux
 ./gradlew :tetris:run
@@ -184,10 +184,10 @@ Windows에서는 `C:\Users\<사용자 이름>\.tetris` 폴더입니다.
 
 ```bash
 # 단위 테스트 + 커버리지 보고서 (tetris/build/reports/jacoco/test/html/index.html)
-./gradlew :tetris:test
+.\gradlew.bat :tetris:test
 
 # 라인 커버리지 50% 기준 검사
-./gradlew :tetris:jacocoTestCoverageVerification
+.\gradlew.bat :tetris:jacocoTestCoverageVerification
 ```
 
 - PR마다 GitHub Actions가 테스트와 커버리지 검사를 실행하고, 실행 요약에 라인 커버리지를 표시합니다.
