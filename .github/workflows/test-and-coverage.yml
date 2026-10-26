@@ -1,0 +1,105 @@
+name: JUnit tests and JaCoCo coverage
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: JUnit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Run JUnit tests
+        run: ./gradlew :tetris:test
+      - name: Check test results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          results = list(Path('tetris/build/test-results/test').glob('TEST-*.xml'))
+          suites = [ET.parse(path).getroot() for path in results]
+          test_count = sum(int(suite.get('tests', 0)) for suite in suites)
+          failed = sum(int(suite.get('failures', 0)) + int(suite.get('errors', 0)) for suite in suites)
+          skipped = sum(int(suite.get('skipped', 0)) for suite in suites)
+          passed = test_count - failed - skipped
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a', encoding='utf-8') as summary:
+              summary.write('### JUnit 테스트 결과\n\n')
+              summary.write(f'- 테스트: **{passed}/{test_count}개 성공** (실패 {failed}, 건너뜀 {skipped})\n')
+              summary.write('- 상세 보고서: 실행 페이지의 `junit-test-reports` 아티팩트\n')
+
+          print(f'Tests: {passed}/{test_count} passed (failed {failed}, skipped {skipped})')
+          assert test_count > 0, 'No tests were executed'
+          PY
+      - name: Upload JUnit test reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: junit-test-reports
+          retention-days: 7
+          path: tetris/build/reports/tests/test/
+          if-no-files-found: warn
+
+  coverage:
+    name: JaCoCo coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Run tests and verify JaCoCo line coverage
+        run: ./gradlew :tetris:test :tetris:jacocoTestCoverageVerification
+      - name: Check coverage data
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          execution_data = Path('tetris/build/jacoco/test.exec')
+          report = Path('tetris/build/reports/jacoco/test/jacocoTestReport.xml')
+          line = next((counter for counter in ET.parse(report).getroot().findall('counter')
+                       if counter.get('type') == 'LINE'), None) if report.is_file() else None
+          covered = int(line.get('covered')) if line is not None else 0
+          missed = int(line.get('missed')) if line is not None else 0
+          measured = covered + missed
+          coverage = f'{covered}/{measured} ({covered / measured:.1%})' if measured else '측정 데이터 없음'
+
+          with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a', encoding='utf-8') as summary:
+              summary.write('### JaCoCo 커버리지 결과\n\n')
+              summary.write(f'- 라인 커버리지: **{coverage}** (기준: 50%)\n')
+              summary.write('- 상세 보고서: 실행 페이지의 `jacoco-coverage-reports` 아티팩트\n')
+
+          assert execution_data.is_file() and execution_data.stat().st_size > 0, 'JaCoCo execution data is missing'
+          assert report.is_file(), 'JaCoCo XML report is missing'
+          assert line is not None, 'JaCoCo line coverage data is missing'
+          assert measured > 0, 'No project lines were measured'
+          print(f'Line coverage: {covered}/{measured} ({covered / measured:.1%})')
+          PY
+      - name: Upload JaCoCo reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: jacoco-coverage-reports
+          retention-days: 7
+          path: |
+            tetris/build/reports/jacoco/test/html/
+            tetris/build/reports/jacoco/test/jacocoTestReport.xml
+          if-no-files-found: warn

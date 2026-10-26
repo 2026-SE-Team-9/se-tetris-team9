@@ -8,6 +8,7 @@
 plugins {
     // Apply the application plugin to add support for building a CLI application in Java.
     id 'application'
+    id 'jacoco'
 }
 
 repositories {
@@ -25,19 +26,85 @@ dependencies {
     implementation libs.guava
 }
 
-// Apply a specific Java toolchain to ease working on different environments.
+// Apply the Java version required by the project.
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(11)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
 application {
     // Define the main class for the application.
-    mainClass = 'seoultech.se.tetris.main.Tetris'
+    mainClass = 'seoultech.se.tetris.ui.TetrisApplication'
 }
 
 tasks.named('test') {
     // Use JUnit Platform for unit tests.
     useJUnitPlatform()
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+// The legacy package is reference code, so measure only the project implementation.
+def coverageClasses = sourceSets.main.output.classesDirs.asFileTree.matching {
+    exclude '**/legacy/**'
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn tasks.named('test')
+    classDirectories.setFrom(coverageClasses)
+
+    reports {
+        xml.required = true
+        csv.required = false
+        html.required = true
+    }
+}
+
+tasks.named('jacocoTestCoverageVerification') {
+    dependsOn tasks.named('test')
+    classDirectories.setFrom(coverageClasses)
+
+    violationRules {
+        rule {
+            limit {
+                counter = 'LINE'
+                value = 'COVEREDRATIO'
+                minimum = 0.50
+            }
+        }
+    }
+}
+
+def jpackageExecutable = javaToolchains.launcherFor {
+    languageVersion = JavaLanguageVersion.of(21)
+}.map { launcher ->
+    def executableName = System.getProperty('os.name').toLowerCase().contains('windows')
+            ? 'jpackage.exe'
+            : 'jpackage'
+    launcher.metadata.installationPath.file("bin/${executableName}")
+}
+
+tasks.register('jpackage', Exec) {
+    group = 'distribution'
+    description = 'Creates a self-contained Tetris application image.'
+    dependsOn tasks.named('installDist')
+
+    def inputDirectory = layout.buildDirectory.dir("install/${project.name}/lib")
+    def outputDirectory = layout.buildDirectory.dir('jpackage')
+
+    inputs.dir(inputDirectory)
+    inputs.file('assets/tetris.ico')
+    outputs.dir(outputDirectory)
+
+    doFirst {
+        delete outputDirectory
+        executable jpackageExecutable.get().asFile
+        args '--type', 'app-image',
+                '--name', 'Tetris',
+                '--input', inputDirectory.get().asFile,
+                '--main-jar', tasks.named('jar').get().archiveFileName.get(),
+                '--main-class', application.mainClass.get(),
+                '--icon', file('assets/tetris.ico'),
+                '--dest', outputDirectory.get().asFile
+    }
 }
