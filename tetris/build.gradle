@@ -44,14 +44,8 @@ tasks.named('test') {
     finalizedBy tasks.named('jacocoTestReport')
 }
 
-// The legacy package is reference code, so measure only the project implementation.
-def coverageClasses = sourceSets.main.output.classesDirs.asFileTree.matching {
-    exclude '**/legacy/**'
-}
-
 tasks.named('jacocoTestReport') {
     dependsOn tasks.named('test')
-    classDirectories.setFrom(coverageClasses)
 
     reports {
         xml.required = true
@@ -62,7 +56,6 @@ tasks.named('jacocoTestReport') {
 
 tasks.named('jacocoTestCoverageVerification') {
     dependsOn tasks.named('test')
-    classDirectories.setFrom(coverageClasses)
 
     violationRules {
         rule {
