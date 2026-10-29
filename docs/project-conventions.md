@@ -348,8 +348,6 @@ Jira 이슈 화면 오른쪽 **개발(Development)** 영역에서 연결된 브�
 | `engine/` | 보드와 게임 진행 로직 |
 | `component/model/` | 모델 인터페이스 (`GameState`) |
 
-`legacy/`는 참조 코드이므로 적용 대상이 아닙니다.
-
 ---
 
 ## 9. 정기 정리
