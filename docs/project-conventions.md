@@ -350,6 +350,7 @@ Jira 이슈 화면 오른쪽 **개발(Development)** 영역에서 연결된 브�
 | `blocks/` | 블럭 종류와 블럭 상태 |
 | `engine/` | 보드와 게임 진행 로직 |
 | `component/model/` | 모델 인터페이스 (`GameState`) |
+| `score/` | 스코어보드 순위와 기록 저장 |
 
 ---
 
