@@ -15,7 +15,13 @@
 
 ## 실행 방법
 
-### 배포 패키지로 실행 (권장)
+### 릴리스에서 내려받아 실행 (권장)
+
+[최신 릴리스](https://github.com/2026-SE-Team-9/se-tetris-team9/releases/latest)에서 `se-tetris-team9.zip`을 내려받아 압축을 풉니다.
+압축을 푼 `Tetris` 폴더 안의 `Tetris.exe`를 실행하면 됩니다. Java 실행 환경이 함께 들어 있어 Java를 따로 설치하지 않아도 됩니다.
+`Tetris.exe`는 같은 폴더의 나머지 파일이 있어야 실행되므로, 옮길 때는 폴더째 옮겨야 합니다.
+
+### 배포 패키지 직접 만들기
 
 Windows에서 아이콘이 포함된 실행 파일을 만듭니다. 패키지를 만드는 PC에는 JDK 21 이상이 필요하고, 패키지에 Java 실행 환경이 함께 들어가므로 실행하는 PC에는 Java가 없어도 됩니다.
 
@@ -232,7 +238,7 @@ tetris/src/main/java/seoultech/se/tetris/
 
 Jira는 팀원만 볼 수 있어서, 전체 이슈 목록은 [Jira 이슈 목록](docs/jira-issues.md)에 옮겨 두었습니다.
 
-모든 브랜치·커밋·PR 제목에 Jira Key(`TET-번호`)를 넣어 Jira와 GitHub 기록을 연결합니다.
+브랜치·커밋·PR 제목에 Jira Key(`TET-번호`)를 넣어 Jira와 GitHub 기록을 연결합니다.
 작업 흐름은 [프로젝트 및 협업 규칙](docs/project-conventions.md)에 정리되어 있습니다.
 
 ---
