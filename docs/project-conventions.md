@@ -142,7 +142,7 @@ Jira 이슈마다 `TET-12` 같은 Key가 붙습니다. 브랜치, 커밋과 PR �
 - **대상 브랜치는 `dev`** (차수 제출 시점의 `dev` → `main` 병합만 예외)
 - 제목은 `[<Jira-Key>] <type>: <설명>` 형식
 - 설명은 `.github/pull_request_template.md` 양식으로 작성합니다. 무엇을, 왜 바꿨는지와 검증 결과, Jira 완료 조건 체크리스트, Jira 링크와 GitHub Issue 번호를 포함합니다. 해결하는 PR은 `Closes #<번호>`로 연결합니다
-- 리뷰어를 지정합니다. 지정은 자신을 제외한 전원으로 합니다
+- 리뷰어는 `.github/CODEOWNERS`에 따라 자신을 제외한 전원에게 자동으로 요청됩니다
 
 ### 리뷰
 
