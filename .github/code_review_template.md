@@ -1,10 +1,10 @@
 # 🤖 AI 코드 리뷰 가이드라인 및 템플릿 (Code Review Guidelines & Template)
 
-본 문서는 `docs/TeamProject_Req1.pdf` 및 `docs/requirements-1.md`의 1차 요구사항, `docs/TeamProject_Req2.pdf` 및 `docs/requirements-2.md`의 2차 요구사항과 `docs/project-conventions.md`의 팀 규칙을 기준으로 PR의 코드 변경사항(diff)을 검토하고, 결과를 PR 댓글(Comment)에 남기기 위한 가이드입니다.
+본 문서는 `docs/TeamProject_Req1.pdf` 및 `docs/requirements-1.md`의 1차 요구사항, `docs/TeamProject_Req2.pdf` 및 `docs/requirements-2.md`의 2차 요구사항, `docs/TeamProject_Req3.pdf` 및 `docs/requirements-3.md`의 3차 요구사항과 `docs/project-conventions.md`의 팀 규칙을 기준으로 PR의 코드 변경사항(diff)을 검토하고, 결과를 PR 댓글(Comment)에 남기기 위한 가이드입니다.
 
 > **규칙 우선:** 이 문서와 `docs/project-conventions.md`의 내용이 다르면 `docs/project-conventions.md`를 따릅니다.
 
-> **차수 우선:** 1차와 2차 요구사항이 다르면 2차를 따릅니다. 바뀐 1차 결정은 `docs/requirements-2.md`의 「1차 결정 변경 내역」에서 확인합니다.
+> **차수 우선:** 차수별 요구사항이 서로 다르면 나중 차수를 따릅니다. 바뀐 1차 결정은 `docs/requirements-2.md`의 「1차 결정 변경 내역」에서, 바뀐 1·2차 결정은 `docs/requirements-3.md`의 「1·2차 결정 변경 내역」에서 확인합니다.
 
 > **원칙:** 리뷰는 정보 제공 및 품질 개선 목적의 **Non-blocking Report**입니다. 위험이나 미충족 요구사항을 발견해도 PR 생성을 자동으로 차단하지 않습니다.
 

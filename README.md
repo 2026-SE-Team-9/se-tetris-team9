@@ -224,6 +224,7 @@ tetris/src/main/java/seoultech/se/tetris/
 |---|---|
 | [1차 요구사항](docs/requirements-1.md) | 기본 게임 요구사항과 팀 결정 |
 | [2차 요구사항](docs/requirements-2.md) | 난이도·애니메이션·아이템 모드 요구사항, 팀 설계 아이템 명세 |
+| [3차 요구사항](docs/requirements-3.md) | 로컬·P2P 대전 모드, 줄 공격, 네트워크 처리 요구사항과 팀 결정 |
 | [프로젝트 및 협업 규칙](docs/project-conventions.md) | Git·PR·Jira 규칙, 계층 규칙 |
 | [회의록](docs/meetings/) | 회차별 논의와 결정 |
 | [Jira 이슈 목록](docs/jira-issues.md) | Jira 이슈 전체와 담당자, 연결된 GitHub Issue·PR |
