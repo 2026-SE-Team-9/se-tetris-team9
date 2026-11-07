@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static seoultech.se.tetris.SerializationTestSupport.roundTrip;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -363,6 +364,47 @@ class BlockTest {
         @DisplayName("포함형 아이템으로는 블럭을 만들 수 없다")
         void embeddedItemCannotBeShape() {
             assertThrows(IllegalArgumentException.class, () -> Block.of(ItemType.LINE_CLEAR, 0, 0));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 직렬화 (P2P 대전 모드에서 화면 정보로 주고받는다)
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("직렬화")
+    class Serialization {
+
+        @Test
+        @DisplayName("회전하고 이동한 블럭을 직렬화했다가 다시 읽어도 같은 블럭이다")
+        void tetromino() throws Exception {
+            Block block = Block.of(BlockType.T, 0, 0).rotated().moved(5, 3);
+
+            Block copy = roundTrip(block);
+
+            assertEquals(block, copy);
+            assertEquals(block.rotated(), copy.rotated());   // 다시 읽은 블럭도 똑같이 움직인다
+        }
+
+        @Test
+        @DisplayName("아이템이 붙은 블럭은 붙은 칸까지 그대로 복원된다")
+        void embeddedItem() throws Exception {
+            Block block = Block.of(BlockType.I, 0, 0).withItem(ItemType.LINE_CLEAR, 1, 2).rotated();
+
+            Block copy = roundTrip(block);
+
+            assertEquals(block, copy);
+            assertEquals(ItemType.LINE_CLEAR, copy.item());
+            assertEquals(block.itemRow(), copy.itemRow());
+            assertEquals(block.itemCol(), copy.itemCol());
+        }
+
+        @Test
+        @DisplayName("독립형 아이템 블럭도 그대로 복원된다")
+        void standaloneItem() throws Exception {
+            Block block = Block.of(ItemType.CRUSHER, 2, 4);
+
+            assertEquals(block, roundTrip(block));
         }
     }
 }
