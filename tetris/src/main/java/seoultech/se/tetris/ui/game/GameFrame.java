@@ -12,6 +12,7 @@ import javax.swing.SwingUtilities;
 import seoultech.se.tetris.component.listener.GameEventListener;
 import seoultech.se.tetris.config.AppSettings;
 import seoultech.se.tetris.config.PropertiesAppSettingsService;
+import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
 import seoultech.se.tetris.config.PropertiesKeyConfigService;
 import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.engine.GameMode;
@@ -115,8 +116,10 @@ public class GameFrame extends JFrame {
         Runnable showSettings = () -> {
             PropertiesAppSettingsService settings = new PropertiesAppSettingsService();
             loadOrKeep(settings);
-            SettingsPanel settingsPanel = new SettingsPanel(settings, keyConfig, new CsvScoreRepository(),
-                    SettingsPanel.Context.IN_GAME, input::applyKeyBindings, () -> {
+            PropertiesBattleKeyConfigService battleKeyConfig = new PropertiesBattleKeyConfigService();
+            battleKeyConfig.load();
+            SettingsPanel settingsPanel = new SettingsPanel(settings, keyConfig, battleKeyConfig, new CsvScoreRepository(),
+                    SettingsPanel.Context.IN_GAME, input::applyKeyBindings, () -> {}, () -> {
                         // 저장했다면 바뀐 화면 크기와 색맹 모드를 반영하고, 취소했다면 그대로 둔다.
                         panel.setScale(settings.current().screenSize().scale());
                         panel.setColorBlind(settings.current().colorBlind());
