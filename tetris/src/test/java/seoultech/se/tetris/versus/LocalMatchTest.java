@@ -14,6 +14,8 @@ import java.util.Random;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import seoultech.se.tetris.blocks.BlockFactory;
 import seoultech.se.tetris.blocks.BlockType;
 import seoultech.se.tetris.blocks.ItemFactory;
@@ -34,13 +36,17 @@ class LocalMatchTest {
     // ------------------------------------------------------------------
 
     /**
-     * 대전이 등록한 리스너를 붙잡아 두는 엔진. 게임 동작은 실제 엔진 그대로다.
+     * 대전이 등록한 리스너를 붙잡아 두고, 엔진에 전달된 이동·회전·드롭을 기록하는 엔진. 게임 동작은 실제 엔진 그대로다.
      *
      * <p>엔진이 실제로 공격을 만들려면 보드를 정교하게 쌓아야 하므로,
      * 공격 전달은 붙잡은 리스너에 직접 신호를 보내 확인한다. 공격 줄을 만드는 규칙은 엔진 테스트에서 다룬다.
+     *
+     * <p>일시정지 중이거나 끝난 엔진은 조작을 받아도 스스로 무시하므로, 보드만 봐서는 대전이 막았는지 알 수 없다.
+     * 그래서 엔진까지 전달되었는지를 직접 기록한다.
      */
     private static final class CapturingEngine extends TetrisEngine {
         final List<GameEventListener> captured = new ArrayList<>();
+        final List<String> moves = new ArrayList<>();
 
         CapturingEngine() {
             super(new BlockFactory(new Random(1)), new ItemFactory(new Random(1)), GameMode.NORMAL);
@@ -56,6 +62,55 @@ class LocalMatchTest {
         GameEventListener matchListener() {
             return captured.get(0);
         }
+
+        @Override
+        public void moveLeft() {
+            moves.add("moveLeft");
+            super.moveLeft();
+        }
+
+        @Override
+        public void moveRight() {
+            moves.add("moveRight");
+            super.moveRight();
+        }
+
+        @Override
+        public void moveDown() {
+            moves.add("moveDown");
+            super.moveDown();
+        }
+
+        @Override
+        public void rotate() {
+            moves.add("rotate");
+            super.rotate();
+        }
+
+        @Override
+        public void rotateCounterclockwise() {
+            moves.add("rotateCounterclockwise");
+            super.rotateCounterclockwise();
+        }
+
+        @Override
+        public void dropToBottom() {
+            moves.add("dropToBottom");
+            super.dropToBottom();
+        }
+    }
+
+    /** 진행 중일 때만 엔진에 전달하는 조작. {@link #pressAllMoves}가 누르는 순서다. */
+    private static final List<String> ALL_MOVES = List.of(
+            "moveLeft", "moveRight", "moveDown", "rotate", "rotateCounterclockwise", "dropToBottom");
+
+    private static void pressAllMoves(GameController controller) {
+        controller.moveLeft();
+        controller.moveRight();
+        controller.moveDown();
+        controller.rotate();
+        controller.rotateCounterclockwise();
+        controller.dropToBottom();
     }
 
     /** 대전 진행을 기록하는 리스너 */
@@ -94,6 +149,21 @@ class LocalMatchTest {
         LocalMatch match = matchOf(mode);
         match.begin();
         listener.phases.clear();
+        return match;
+    }
+
+    /** 지정한 단계의 대전을 만든다. */
+    private LocalMatch inPhase(MatchPhase phase) {
+        LocalMatch match = matchOf(VersusMode.NORMAL);
+        if (phase != MatchPhase.READY) {
+            match.begin();
+        }
+        if (phase == MatchPhase.PAUSED) {
+            match.pause();
+        } else if (phase == MatchPhase.ENDED) {
+            match.quit();
+        }
+        assertEquals(phase, match.phase());
         return match;
     }
 
@@ -345,6 +415,44 @@ class LocalMatchTest {
             control(match, Side.P1).moveDown();
 
             assertEquals(y, p1.getCurrentY());
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @EnumSource(value = MatchPhase.class, names = {"READY", "PAUSED", "ENDED"})
+        @DisplayName("진행 중이 아니면 이동·회전·드롭 6가지 모두 엔진에 전달되지 않는다")
+        void allMovesBlockedUnlessPlaying(MatchPhase phase) {
+            LocalMatch match = inPhase(phase);
+
+            pressAllMoves(control(match, Side.P1));
+            pressAllMoves(control(match, Side.P2));
+
+            assertEquals(List.of(), p1.moves);
+            assertEquals(List.of(), p2.moves);
+        }
+
+        @Test
+        @DisplayName("진행 중에는 이동·회전·드롭 6가지 모두 그 자리의 엔진에만 전달된다")
+        void allMovesForwardedWhilePlaying() {
+            LocalMatch match = playing(VersusMode.NORMAL);
+
+            pressAllMoves(control(match, Side.P1));
+
+            assertEquals(ALL_MOVES, p1.moves);
+            assertEquals(List.of(), p2.moves);
+        }
+
+        @Test
+        @DisplayName("한 자리의 일시정지·재개 명령은 대전 전체에 적용된다")
+        void pauseAndResumeCommandsApplyToMatch() {
+            LocalMatch match = playing(VersusMode.NORMAL);
+
+            control(match, Side.P1).pauseGame();
+            assertEquals(MatchPhase.PAUSED, match.phase());
+            assertTrue(p2.isPaused());
+
+            control(match, Side.P2).resumeGame();
+            assertEquals(MatchPhase.PLAYING, match.phase());
+            assertFalse(p1.isPaused());
         }
 
         @Test
