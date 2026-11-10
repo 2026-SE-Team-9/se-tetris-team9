@@ -358,4 +358,51 @@ class ItemEffectTest {
             assertEquals(0, manyPlan.itemScoreCells());
         }
     }
+
+    // ------------------------------------------------------------------
+    // 놓인 블럭 기록 (대전 모드에서 공격 줄을 만들 때 쓴다)
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("놓인 블럭 기록")
+    class PlacedBlock {
+
+        @Test
+        @DisplayName("고정하면서 보드에 놓은 블럭을 계획에 기록한다 (일반 블럭, L, D, Crusher)")
+        void recordsPlacedBlock() {
+            List<Block> blocks = List.of(
+                    Block.of(BlockType.T, 0, 3),
+                    Block.of(BlockType.I, 0, 3).withItem(ItemType.LINE_CLEAR, 1, 2),
+                    Block.of(BlockType.I, 0, 3).withItem(ItemType.DOUBLE_OR_NOTHING, 1, 2),
+                    Block.of(ItemType.CRUSHER, 0, 3));
+
+            for (Block block : blocks) {
+                Board board = new Board();
+                Block landed = landed(board, block);
+
+                assertEquals(landed, lock(board, landed).placedBlock(), block.toString());
+            }
+        }
+
+        @Test
+        @DisplayName("무게추는 고정할 때 놓지 않고 삭제를 마친 뒤에 놓으므로 기록하지 않는다")
+        void weightIsPlacedAfterRemoval() {
+            Board board = new Board();
+            Block weight = landed(board, Block.of(ItemType.WEIGHT, 0, 3));
+
+            ClearPlan plan = lock(board, weight);
+
+            assertNull(plan.placedBlock());
+            assertEquals(weight, plan.placeAfterRemoval());
+        }
+
+        @Test
+        @DisplayName("Tall Boy는 보드에 놓이지 않고 사라지므로 기록하지 않는다")
+        void tallBoyIsNeverPlaced() {
+            Board board = boardWithBottomRows("XXXXXXXXX.");
+            Block tallBoy = landed(board, Block.of(ItemType.TALL_BOY, 0, 3));
+
+            assertNull(lock(board, tallBoy).placedBlock());
+        }
+    }
 }
