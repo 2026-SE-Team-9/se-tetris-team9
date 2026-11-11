@@ -58,7 +58,6 @@ public final class SettingsPanel extends JPanel {
      *
      * <p>난이도와 스코어보드 기록 초기화는 시작 메뉴에서만 바꿀 수 있다.
      * 게임 중에는 진행 중인 판의 규칙과 기록이 어긋나지 않도록 두 항목을 보여주지 않는다.
-     * 로컬 대전 게임 중에는 키 변경을 허용하지 않고 조회만 제공한다.
      */
     public enum Context {
         /** 시작 메뉴에서 연 설정 */
@@ -66,7 +65,7 @@ public final class SettingsPanel extends JPanel {
         /** 1인 게임 중 일시정지 메뉴에서 연 설정 */
         IN_GAME(false, true),
         /** 로컬 대전 게임 중 일시정지 메뉴에서 연 설정 */
-        LOCAL_BATTLE_IN_GAME(false, false);
+        LOCAL_BATTLE_IN_GAME(false, true);
 
         private final boolean fullAccess;
         private final boolean allowsKeyEditing;
@@ -169,52 +168,9 @@ public final class SettingsPanel extends JPanel {
             battleKeyBindings.setInteractive(false);
         }
 
-        setupControlSync();
         buildContent();
         loadCurrentValues();
         selectTab(false);
-    }
-
-    /** 일반 모드와 대전 모드의 화면 크기, 난이도 및 색맹 모드 설정을 상호 동기화한다. */
-    private void setupControlSync() {
-        screenSize.addActionListener(event -> {
-            Object selected = screenSize.getSelectedItem();
-            if (battleScreenSize.getSelectedItem() != selected) {
-                battleScreenSize.setSelectedItem(selected);
-            }
-        });
-        battleScreenSize.addActionListener(event -> {
-            Object selected = battleScreenSize.getSelectedItem();
-            if (screenSize.getSelectedItem() != selected) {
-                screenSize.setSelectedItem(selected);
-            }
-        });
-
-        difficulty.addActionListener(event -> {
-            Object selected = difficulty.getSelectedItem();
-            if (battleDifficulty.getSelectedItem() != selected) {
-                battleDifficulty.setSelectedItem(selected);
-            }
-        });
-        battleDifficulty.addActionListener(event -> {
-            Object selected = battleDifficulty.getSelectedItem();
-            if (difficulty.getSelectedItem() != selected) {
-                difficulty.setSelectedItem(selected);
-            }
-        });
-
-        colorBlind.addActionListener(event -> {
-            boolean checked = colorBlind.isSelected();
-            if (battleColorBlind.isSelected() != checked) {
-                battleColorBlind.setSelected(checked);
-            }
-        });
-        battleColorBlind.addActionListener(event -> {
-            boolean checked = battleColorBlind.isSelected();
-            if (colorBlind.isSelected() != checked) {
-                colorBlind.setSelected(checked);
-            }
-        });
     }
 
     @Override
@@ -724,11 +680,11 @@ public final class SettingsPanel extends JPanel {
     private void loadCurrentValues() {
         AppSettings current = settings.current();
         screenSize.setSelectedItem(current.screenSize());
-        battleScreenSize.setSelectedItem(current.screenSize());
+        battleScreenSize.setSelectedItem(current.battleScreenSize());
         difficulty.setSelectedItem(current.difficulty());
-        battleDifficulty.setSelectedItem(current.difficulty());
+        battleDifficulty.setSelectedItem(current.battleDifficulty());
         colorBlind.setSelected(current.colorBlind());
-        battleColorBlind.setSelected(current.colorBlind());
+        battleColorBlind.setSelected(current.battleColorBlind());
         keyBindings.refreshKeys();
         battleKeyBindings.refreshKeys();
     }
@@ -737,13 +693,13 @@ public final class SettingsPanel extends JPanel {
         keyBindings.cancelKeyCapture();
         battleKeyBindings.cancelKeyCapture();
         screenSize.setSelectedItem(AppSettings.DEFAULT.screenSize());
-        battleScreenSize.setSelectedItem(AppSettings.DEFAULT.screenSize());
+        battleScreenSize.setSelectedItem(AppSettings.DEFAULT.battleScreenSize());
         if (context.allowsDifficulty()) {
             difficulty.setSelectedItem(AppSettings.DEFAULT.difficulty());
-            battleDifficulty.setSelectedItem(AppSettings.DEFAULT.difficulty());
+            battleDifficulty.setSelectedItem(AppSettings.DEFAULT.battleDifficulty());
         }
         colorBlind.setSelected(AppSettings.DEFAULT.colorBlind());
-        battleColorBlind.setSelected(AppSettings.DEFAULT.colorBlind());
+        battleColorBlind.setSelected(AppSettings.DEFAULT.battleColorBlind());
         keyEditor.restoreDefaults();
         battleKeyEditor.restoreDefaults();
         keyBindings.refreshKeys();
@@ -774,8 +730,16 @@ public final class SettingsPanel extends JPanel {
             Difficulty savedDifficulty = context.allowsDifficulty()
                     ? (Difficulty) difficulty.getSelectedItem()
                     : settings.current().difficulty();
-            settings.save(new AppSettings((ScreenSize) screenSize.getSelectedItem(),
-                    colorBlind.isSelected(), savedDifficulty));
+            Difficulty savedBattleDifficulty = context.allowsDifficulty()
+                    ? (Difficulty) battleDifficulty.getSelectedItem()
+                    : settings.current().battleDifficulty();
+            settings.save(new AppSettings(
+                    (ScreenSize) screenSize.getSelectedItem(),
+                    colorBlind.isSelected(),
+                    savedDifficulty,
+                    (ScreenSize) battleScreenSize.getSelectedItem(),
+                    battleColorBlind.isSelected(),
+                    savedBattleDifficulty));
             close();
         } catch (RuntimeException e) {
             JOptionPane.showMessageDialog(this,

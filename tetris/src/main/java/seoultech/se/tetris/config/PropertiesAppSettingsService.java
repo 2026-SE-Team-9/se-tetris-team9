@@ -42,10 +42,32 @@ public final class PropertiesAppSettingsService {
             if (!"true".equals(colorBlind) && !"false".equals(colorBlind)) {
                 throw new IllegalArgumentException("색맹 모드 값이 올바르지 않습니다");
             }
-            current = new AppSettings(
-                    ScreenSize.valueOf(properties.getProperty("screenSize")),
-                    Boolean.parseBoolean(colorBlind),
-                    Difficulty.valueOf(properties.getProperty("difficulty")));
+            ScreenSize size = ScreenSize.valueOf(properties.getProperty("screenSize"));
+            Difficulty diff = Difficulty.valueOf(properties.getProperty("difficulty"));
+            boolean cb = Boolean.parseBoolean(colorBlind);
+
+            ScreenSize battleSize = AppSettings.DEFAULT.battleScreenSize();
+            String battleSizeProp = properties.getProperty("battleScreenSize");
+            if (battleSizeProp != null) {
+                battleSize = ScreenSize.valueOf(battleSizeProp);
+            }
+
+            boolean battleCb = AppSettings.DEFAULT.battleColorBlind();
+            String battleColorBlindProp = properties.getProperty("battleColorBlind");
+            if (battleColorBlindProp != null) {
+                if (!"true".equals(battleColorBlindProp) && !"false".equals(battleColorBlindProp)) {
+                    throw new IllegalArgumentException("대전 색맹 모드 값이 올바르지 않습니다");
+                }
+                battleCb = Boolean.parseBoolean(battleColorBlindProp);
+            }
+
+            Difficulty battleDiff = AppSettings.DEFAULT.battleDifficulty();
+            String battleDiffProp = properties.getProperty("battleDifficulty");
+            if (battleDiffProp != null) {
+                battleDiff = Difficulty.valueOf(battleDiffProp);
+            }
+
+            current = new AppSettings(size, cb, diff, battleSize, battleCb, battleDiff);
         } catch (IllegalArgumentException | NullPointerException e) {
             current = AppSettings.DEFAULT;
         } catch (IOException e) {
@@ -60,6 +82,9 @@ public final class PropertiesAppSettingsService {
         properties.setProperty("screenSize", settings.screenSize().name());
         properties.setProperty("colorBlind", Boolean.toString(settings.colorBlind()));
         properties.setProperty("difficulty", settings.difficulty().name());
+        properties.setProperty("battleScreenSize", settings.battleScreenSize().name());
+        properties.setProperty("battleColorBlind", Boolean.toString(settings.battleColorBlind()));
+        properties.setProperty("battleDifficulty", settings.battleDifficulty().name());
 
         Path temporaryFile = null;
         try {
