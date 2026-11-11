@@ -1,12 +1,13 @@
 package seoultech.se.tetris.component.model;
 
+import java.util.List;
 import seoultech.se.tetris.blocks.Block;
 
 public interface GameState {
     /**
      * 현재 20x10 보드에 고정된 블럭들의 상태 반환.
      *
-     * <p>각 칸의 값은 칸 번호로, 테트로미노 또는 아이템의 번호이며 빈 칸은
+     * <p>각 칸의 값은 칸 번호로, 테트로미노, 아이템, 또는 공격 칸의 번호이며 빈 칸은
      * {@link seoultech.se.tetris.blocks.CellCode#EMPTY}이다.
      * 화면은 번호를 직접 비교하지 않고 {@link seoultech.se.tetris.blocks.CellCode}로 종류와 표시 문자를 얻는다.
      */
@@ -64,5 +65,17 @@ public interface GameState {
     default boolean[][] getClearingCells() {
         int[][] board = getBoard();
         return new boolean[board.length][board.length == 0 ? 0 : board[0].length];
+    }
+
+    /**
+     * 보드에 들어가기 전의 공격 대기 줄 (대전 모드)
+     *
+     * <p>위에서 아래 순서이며 최대 10줄이다. 대기 영역에는 이 순서 그대로 그린다.
+     * 다음 블럭이 생성되기 직전에 모두 보드 아래쪽에 추가되고 비워진다.
+     *
+     * <p>다른 모드를 위해 기본값은 빈 목록
+     */
+    default List<GarbageLine> getPendingGarbage() {
+        return List.of();
     }
 }

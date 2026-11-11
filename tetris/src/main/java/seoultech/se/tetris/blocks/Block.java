@@ -1,5 +1,6 @@
 package seoultech.se.tetris.blocks;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 /**
@@ -31,12 +32,19 @@ import java.util.Objects;
  *     if (board.canPlace(next)) { current = next; break; }
  * }
  * }</pre>
+ *
+ * <p>대전 모드에서 화면 정보를 네트워크로 보낼 수 있도록 직렬화할 수 있다.
+ * 받은 블럭은 생성자를 다시 거쳐 만들어지므로 생성자의 검사가 그대로 적용된다.
  */
-public final class Block {
+public final class Block implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     /** 포함형 아이템이 없을 때 붙은 칸의 좌표 값 */
     private static final int NO_ITEM = -1;
 
+    /** 모양은 enum({@link BlockType}, {@link ItemType})만 구현하므로 직렬화할 수 있다. */
+    @SuppressWarnings("serial")
     private final Shape shape;
     private final int rotation;
     private final int row;
@@ -255,5 +263,10 @@ public final class Block {
     public String toString() {
         String itemText = item == null ? "" : " item=" + item + "@" + itemRow + "," + itemCol;
         return "Block[" + shape + " rot=" + rotation + " row=" + row + " col=" + col + itemText + "]";
+    }
+
+    /** 역직렬화한 블럭을 생성자로 다시 만들어 생성자의 검사를 거치게 한다. */
+    private Object readResolve() {
+        return new Block(shape, rotation, row, col, item, itemRow, itemCol);
     }
 }

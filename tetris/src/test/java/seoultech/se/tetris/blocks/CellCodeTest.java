@@ -2,6 +2,7 @@ package seoultech.se.tetris.blocks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,6 +41,34 @@ class CellCodeTest {
             assertTrue(CellCode.isItem(item.code()));
             assertNull(CellCode.blockTypeOf(item.code()));
             assertEquals(item.symbol(), CellCode.symbolOf(item.code()));
+        }
+    }
+
+    @Test
+    @DisplayName("공격 칸 번호는 아이템 번호 바로 다음이고, 표시 문자는 X이며 빈 칸·블럭·아이템이 아니다")
+    void garbageCode() {
+        ItemType[] items = ItemType.values();
+        assertEquals(items[items.length - 1].code() + 1, CellCode.GARBAGE);
+        assertTrue(CellCode.isGarbage(CellCode.GARBAGE));
+        assertEquals('X', CellCode.symbolOf(CellCode.GARBAGE));
+        assertFalse(CellCode.isEmpty(CellCode.GARBAGE));
+        assertNull(CellCode.blockTypeOf(CellCode.GARBAGE));
+        assertNull(CellCode.itemOf(CellCode.GARBAGE));
+        assertFalse(CellCode.isItem(CellCode.GARBAGE));
+    }
+
+    @Test
+    @DisplayName("공격 칸은 번호와 표시 문자 모두 빈 칸·블럭·아이템과 겹치지 않는다")
+    void garbageCodeIsDistinct() {
+        assertNotEquals(CellCode.EMPTY, CellCode.GARBAGE);
+        assertFalse(CellCode.isGarbage(CellCode.EMPTY));
+        for (BlockType type : BlockType.values()) {
+            assertFalse(CellCode.isGarbage(type.code()));
+            assertNotEquals(type.symbol(), CellCode.GARBAGE_SYMBOL);
+        }
+        for (ItemType item : ItemType.values()) {
+            assertFalse(CellCode.isGarbage(item.code()));
+            assertNotEquals(item.symbol(), CellCode.GARBAGE_SYMBOL);
         }
     }
 

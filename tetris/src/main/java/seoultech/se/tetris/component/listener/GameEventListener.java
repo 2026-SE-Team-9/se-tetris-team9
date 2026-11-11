@@ -1,5 +1,7 @@
 package seoultech.se.tetris.component.listener;
 
+import seoultech.se.tetris.component.model.Attack;
+
 public interface GameEventListener {
     /** 보드 상태가 변경되어 화면을 다시 그려야 할 때 호출 */
     void onBoardUpdated();
@@ -21,5 +23,15 @@ public interface GameEventListener {
      * 필요한 리스너만 구현하도록 기본 동작은 아무것도 하지 않는 것이다.
      */
     default void onClearingStarted() {
+    }
+
+    /**
+     * 상대에게 보낼 줄 공격이 생겼을 때 호출 (대전 모드)
+     *
+     * <p>줄 삭제 애니메이션이 끝나 실제로 줄을 지우는 시점에, 보낼 줄이 2줄 이상일 때만 호출된다.
+     * 공격을 상대에게 전달하는 것은 대전을 진행하는 쪽의 일이다.
+     * 다른 모드 화면에서는 받을 필요가 없으므로 기본 동작은 아무것도 하지 않는 것이다.
+     */
+    default void onAttack(Attack attack) {
     }
 }
