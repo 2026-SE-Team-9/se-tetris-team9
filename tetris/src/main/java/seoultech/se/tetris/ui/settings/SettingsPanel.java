@@ -7,8 +7,6 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.GridLayout;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.Rectangle;
@@ -28,9 +26,7 @@ import javax.swing.KeyStroke;
 import javax.swing.BoxLayout;
 import javax.swing.Box;
 import javax.swing.BorderFactory;
-import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -39,7 +35,6 @@ import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.plaf.basic.BasicButtonUI;
-import javax.swing.plaf.basic.BasicComboBoxUI;
 import seoultech.se.tetris.config.AppSettings;
 import seoultech.se.tetris.config.AppSettings.ScreenSize;
 import seoultech.se.tetris.config.BattleKeyBindingEditor;
@@ -49,7 +44,6 @@ import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
 import seoultech.se.tetris.config.PropertiesKeyConfigService;
 import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.score.ScoreRepository;
-import seoultech.se.tetris.ui.DifficultyLabels;
 
 /** 시작 메뉴와 일시정지 화면에서 재사용할 수 있는 설정 화면. */
 public final class SettingsPanel extends JPanel {
@@ -111,15 +105,9 @@ public final class SettingsPanel extends JPanel {
     private final transient KeyEventDispatcher keyboardDispatcher = this::dispatchKeyboard;
     private final List<List<JComponent>> navigationRows = new ArrayList<>();
 
-    // 일반 모드용 컨트롤
-    private final JComboBox<ScreenSize> screenSize = new JComboBox<>(ScreenSize.values());
-    private final JComboBox<Difficulty> difficulty = new JComboBox<>(Difficulty.values());
-    private final JCheckBox colorBlind = new JCheckBox("색맹 모드");
-
-    // 대전 모드용 컨트롤 (일반 모드와 동기화)
-    private final JComboBox<ScreenSize> battleScreenSize = new JComboBox<>(ScreenSize.values());
-    private final JComboBox<Difficulty> battleDifficulty = new JComboBox<>(Difficulty.values());
-    private final JCheckBox battleColorBlind = new JCheckBox("색맹 모드");
+    // 일반 모드 및 대전 모드 옵션 컴포넌트
+    private final ModeOptionsPanel singleOptions;
+    private final ModeOptionsPanel battleOptions;
 
     // 최상단 탭 버튼 및 CardLayout 컨테이너
     private final JButton singleModeTab = new JButton("일반 모드");
@@ -163,6 +151,8 @@ public final class SettingsPanel extends JPanel {
         this.scores = Objects.requireNonNull(scores, "scores");
         this.context = Objects.requireNonNull(context, "context");
         this.onClose = Objects.requireNonNull(onClose, "onClose");
+        this.singleOptions = new ModeOptionsPanel(context.allowsDifficulty());
+        this.battleOptions = new ModeOptionsPanel(context.allowsDifficulty());
 
         if (!context.allowsKeyEditing()) {
             battleKeyBindings.setInteractive(false);
@@ -397,35 +387,7 @@ public final class SettingsPanel extends JPanel {
         singleModePanel.setBackground(BACKGROUND);
         singleModePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        Dimension optionsSize = new Dimension(INNER_WIDTH, context.allowsDifficulty() ? 105 : 70);
-        JPanel options = new JPanel(new GridLayout(context.allowsDifficulty() ? 3 : 2, 2, 12, 10));
-        options.setBackground(BACKGROUND);
-        options.setAlignmentX(Component.LEFT_ALIGNMENT);
-        options.setPreferredSize(optionsSize);
-        options.setMaximumSize(optionsSize);
-
-        options.add(label("화면 크기"));
-        styleCombo(screenSize);
-        options.add(screenSize);
-        if (context.allowsDifficulty()) {
-            options.add(label("난이도"));
-            styleCombo(difficulty);
-            difficulty.setRenderer(createDifficultyRenderer());
-            options.add(difficulty);
-        }
-        options.add(label("블록 표시"));
-        styleCheckBox(colorBlind);
-        options.add(colorBlind);
-        singleModePanel.add(options);
-
-        singleModePanel.add(Box.createVerticalStrut(6));
-        JLabel sizeHint = label("화면 크기와 색맹 모드는 게임 화면에 적용됩니다.");
-        sizeHint.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
-        sizeHint.setForeground(MUTED);
-        sizeHint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        sizeHint.setPreferredSize(new Dimension(INNER_WIDTH, 18));
-        sizeHint.setMaximumSize(new Dimension(INNER_WIDTH, 18));
-        singleModePanel.add(sizeHint);
+        singleModePanel.add(singleOptions);
         singleModePanel.add(Box.createVerticalStrut(18));
 
         JLabel section = label("1인 조작 키");
@@ -458,35 +420,7 @@ public final class SettingsPanel extends JPanel {
         battleModePanel.setBackground(BACKGROUND);
         battleModePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        Dimension optionsSize = new Dimension(INNER_WIDTH, context.allowsDifficulty() ? 105 : 70);
-        JPanel options = new JPanel(new GridLayout(context.allowsDifficulty() ? 3 : 2, 2, 12, 10));
-        options.setBackground(BACKGROUND);
-        options.setAlignmentX(Component.LEFT_ALIGNMENT);
-        options.setPreferredSize(optionsSize);
-        options.setMaximumSize(optionsSize);
-
-        options.add(label("화면 크기"));
-        styleCombo(battleScreenSize);
-        options.add(battleScreenSize);
-        if (context.allowsDifficulty()) {
-            options.add(label("난이도"));
-            styleCombo(battleDifficulty);
-            battleDifficulty.setRenderer(createDifficultyRenderer());
-            options.add(battleDifficulty);
-        }
-        options.add(label("블록 표시"));
-        styleCheckBox(battleColorBlind);
-        options.add(battleColorBlind);
-        battleModePanel.add(options);
-
-        battleModePanel.add(Box.createVerticalStrut(6));
-        JLabel sizeHint = label("화면 크기와 색맹 모드는 게임 화면에 적용됩니다.");
-        sizeHint.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
-        sizeHint.setForeground(MUTED);
-        sizeHint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        sizeHint.setPreferredSize(new Dimension(INNER_WIDTH, 18));
-        sizeHint.setMaximumSize(new Dimension(INNER_WIDTH, 18));
-        battleModePanel.add(sizeHint);
+        battleModePanel.add(battleOptions);
         battleModePanel.add(Box.createVerticalStrut(18));
 
         JLabel section = label("대전 조작 키 (2인)");
@@ -542,18 +476,10 @@ public final class SettingsPanel extends JPanel {
         navigationRows.add(List.of(singleModeTab, battleModeTab));
 
         if (showingBattleKeys) {
-            navigationRows.add(List.of(battleScreenSize));
-            if (context.allowsDifficulty()) {
-                navigationRows.add(List.of(battleDifficulty));
-            }
-            navigationRows.add(List.of(battleColorBlind));
+            navigationRows.addAll(battleOptions.navigationRows());
             navigationRows.addAll(battleKeyBindings.navigationRows());
         } else {
-            navigationRows.add(List.of(screenSize));
-            if (context.allowsDifficulty()) {
-                navigationRows.add(List.of(difficulty));
-            }
-            navigationRows.add(List.of(colorBlind));
+            navigationRows.addAll(singleOptions.navigationRows());
             navigationRows.addAll(keyBindings.navigationRows());
         }
 
@@ -574,76 +500,7 @@ public final class SettingsPanel extends JPanel {
         return label;
     }
 
-    private static DefaultListCellRenderer createDifficultyRenderer() {
-        return new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(javax.swing.JList<?> list,
-                    Object value, int index, boolean selected, boolean focused) {
-                super.getListCellRendererComponent(list, value, index, selected, focused);
-                if (value instanceof Difficulty selectedDifficulty) {
-                    setText(DifficultyLabels.of(selectedDifficulty));
-                }
-                setOpaque(true);
-                setBackground(index >= 0 && selected ? Color.CYAN : SURFACE);
-                setForeground(index >= 0 && selected ? BACKGROUND : Color.WHITE);
-                return this;
-            }
-        };
-    }
 
-    private static void styleCheckBox(JCheckBox box) {
-        box.setFont(BODY_FONT);
-        box.setBackground(BACKGROUND);
-        box.setForeground(Color.WHITE);
-        box.setFocusPainted(true);
-    }
-
-    private static void styleCombo(JComboBox<?> combo) {
-        var originalBorder = combo.getBorder();
-        combo.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusGained(FocusEvent event) {
-                combo.setBorder(BorderFactory.createLineBorder(Color.YELLOW));
-            }
-
-            @Override
-            public void focusLost(FocusEvent event) {
-                combo.setBorder(originalBorder);
-            }
-        });
-        combo.setUI(new BasicComboBoxUI() {
-            @Override
-            public void paintCurrentValueBackground(Graphics graphics, Rectangle bounds, boolean focused) {
-                graphics.setColor(SURFACE);
-                graphics.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-            }
-
-            @Override
-            protected JButton createArrowButton() {
-                JButton arrow = new JButton("▼");
-                arrow.setUI(new BasicButtonUI());
-                arrow.setFont(new Font(Font.DIALOG, Font.PLAIN, 11));
-                arrow.setBackground(SURFACE);
-                arrow.setForeground(Color.CYAN);
-                arrow.setBorder(BorderFactory.createLineBorder(OUTLINE));
-                return arrow;
-            }
-        });
-        combo.setFont(BODY_FONT);
-        combo.setBackground(SURFACE);
-        combo.setForeground(Color.WHITE);
-        combo.setRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(javax.swing.JList<?> list,
-                    Object value, int index, boolean selected, boolean focused) {
-                super.getListCellRendererComponent(list, value, index, selected, focused);
-                setOpaque(true);
-                setBackground(index < 0 ? SURFACE : selected ? Color.CYAN : SURFACE);
-                setForeground(index >= 0 && selected ? BACKGROUND : Color.WHITE);
-                return this;
-            }
-        });
-    }
 
     static void styleButton(JButton button, boolean accent) {
         button.setUI(new BasicButtonUI());
@@ -679,12 +536,14 @@ public final class SettingsPanel extends JPanel {
 
     private void loadCurrentValues() {
         AppSettings current = settings.current();
-        screenSize.setSelectedItem(current.screenSize());
-        battleScreenSize.setSelectedItem(current.battleScreenSize());
-        difficulty.setSelectedItem(current.difficulty());
-        battleDifficulty.setSelectedItem(current.battleDifficulty());
-        colorBlind.setSelected(current.colorBlind());
-        battleColorBlind.setSelected(current.battleColorBlind());
+        singleOptions.setScreenSize(current.screenSize());
+        singleOptions.setDifficulty(current.difficulty());
+        singleOptions.setColorBlind(current.colorBlind());
+
+        battleOptions.setScreenSize(current.battleScreenSize());
+        battleOptions.setDifficulty(current.battleDifficulty());
+        battleOptions.setColorBlind(current.battleColorBlind());
+
         keyBindings.refreshKeys();
         battleKeyBindings.refreshKeys();
     }
@@ -692,14 +551,14 @@ public final class SettingsPanel extends JPanel {
     private void restoreDefaults() {
         keyBindings.cancelKeyCapture();
         battleKeyBindings.cancelKeyCapture();
-        screenSize.setSelectedItem(AppSettings.DEFAULT.screenSize());
-        battleScreenSize.setSelectedItem(AppSettings.DEFAULT.battleScreenSize());
+        singleOptions.setScreenSize(AppSettings.DEFAULT.screenSize());
+        battleOptions.setScreenSize(AppSettings.DEFAULT.battleScreenSize());
         if (context.allowsDifficulty()) {
-            difficulty.setSelectedItem(AppSettings.DEFAULT.difficulty());
-            battleDifficulty.setSelectedItem(AppSettings.DEFAULT.battleDifficulty());
+            singleOptions.setDifficulty(AppSettings.DEFAULT.difficulty());
+            battleOptions.setDifficulty(AppSettings.DEFAULT.battleDifficulty());
         }
-        colorBlind.setSelected(AppSettings.DEFAULT.colorBlind());
-        battleColorBlind.setSelected(AppSettings.DEFAULT.battleColorBlind());
+        singleOptions.setColorBlind(AppSettings.DEFAULT.colorBlind());
+        battleOptions.setColorBlind(AppSettings.DEFAULT.battleColorBlind());
         keyEditor.restoreDefaults();
         battleKeyEditor.restoreDefaults();
         keyBindings.refreshKeys();
@@ -728,17 +587,17 @@ public final class SettingsPanel extends JPanel {
             }
             // 게임 중에는 난이도를 보여주지 않으므로 저장된 값을 그대로 유지한다.
             Difficulty savedDifficulty = context.allowsDifficulty()
-                    ? (Difficulty) difficulty.getSelectedItem()
+                    ? singleOptions.getDifficulty()
                     : settings.current().difficulty();
             Difficulty savedBattleDifficulty = context.allowsDifficulty()
-                    ? (Difficulty) battleDifficulty.getSelectedItem()
+                    ? battleOptions.getDifficulty()
                     : settings.current().battleDifficulty();
             settings.save(new AppSettings(
-                    (ScreenSize) screenSize.getSelectedItem(),
-                    colorBlind.isSelected(),
+                    singleOptions.getScreenSize(),
+                    singleOptions.isColorBlind(),
                     savedDifficulty,
-                    (ScreenSize) battleScreenSize.getSelectedItem(),
-                    battleColorBlind.isSelected(),
+                    battleOptions.getScreenSize(),
+                    battleOptions.isColorBlind(),
                     savedBattleDifficulty));
             close();
         } catch (RuntimeException e) {
