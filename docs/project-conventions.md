@@ -164,6 +164,8 @@ Jira 이슈마다 `TET-12` 같은 Key가 붙습니다. 브랜치, 커밋과 PR �
 - 차수 제출 시 `dev` → `main` 병합만 **Create a merge commit**을 사용합니다. Squash로 합치면 `main`에 `dev`에 없는 커밋이 생겨 다음 병합에서 충돌이 날 수 있습니다.
   - 이 병합 동안에만 저장소 설정에서 merge commit을 허용하고 Squash 허용을 끄며, 병합 후 원래대로 돌립니다.
   - 설정을 바꿔 둔 동안에는 다른 PR을 병합하지 않습니다. 가능하면 열린 PR이 없을 때 진행합니다.
+  - 병합 전에 `main`에 `dev`에 없는 커밋이 있는지 확인합니다. 있으면 `main`을 `dev`에 merge commit으로 먼저 합친 뒤 `dev` → `main`을 병합합니다.
+    - 확인 방법: `git fetch` 후 `git log --oneline origin/dev..origin/main`의 결과가 비어 있지 않으면 먼저 합쳐야 합니다.
 - 병합 후 작업 브랜치 삭제 (원격 브랜치는 병합 시 자동 삭제됨)
 
 ---
@@ -338,8 +340,9 @@ Jira 이슈 화면 오른쪽 **개발(Development)** 영역에서 연결된 브�
 | :--- | :--- |
 | `blocks/` | 블럭 종류와 블럭 상태 |
 | `engine/` | 보드와 게임 진행 로직 |
-| `component/model/` | 모델 인터페이스 (`GameState`) |
+| `component/model/` | 모델 인터페이스와 공격 줄 데이터 (`GameState`, `Attack`, `GarbageLine`) |
 | `score/` | 스코어보드 순위와 기록 저장 |
+| `versus/` | 대전 진행, 승패 판정, 상대 화면 정보 (`VersusMatch`, `BoardSnapshot`) |
 
 ---
 
