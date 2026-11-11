@@ -1,16 +1,18 @@
 package seoultech.se.tetris.ui.settings;
 
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Component;
 import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.GridLayout;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.Rectangle;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.ActionEvent;
 import java.util.Objects;
@@ -24,25 +26,24 @@ import javax.swing.KeyStroke;
 import javax.swing.BoxLayout;
 import javax.swing.Box;
 import javax.swing.BorderFactory;
-import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
-import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.plaf.basic.BasicButtonUI;
-import javax.swing.plaf.basic.BasicComboBoxUI;
 import seoultech.se.tetris.config.AppSettings;
 import seoultech.se.tetris.config.AppSettings.ScreenSize;
+import seoultech.se.tetris.config.BattleKeyBindingEditor;
 import seoultech.se.tetris.config.KeyBindingEditor;
 import seoultech.se.tetris.config.PropertiesAppSettingsService;
+import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
 import seoultech.se.tetris.config.PropertiesKeyConfigService;
 import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.score.ScoreRepository;
-import seoultech.se.tetris.ui.DifficultyLabels;
 
 /** 시작 메뉴와 일시정지 화면에서 재사용할 수 있는 설정 화면. */
 public final class SettingsPanel extends JPanel {
@@ -54,14 +55,18 @@ public final class SettingsPanel extends JPanel {
      */
     public enum Context {
         /** 시작 메뉴에서 연 설정 */
-        START_MENU(true),
-        /** 게임 중 일시정지 메뉴에서 연 설정 */
-        IN_GAME(false);
+        START_MENU(true, true),
+        /** 1인 게임 중 일시정지 메뉴에서 연 설정 */
+        IN_GAME(false, true),
+        /** 로컬 대전 게임 중 일시정지 메뉴에서 연 설정 */
+        LOCAL_BATTLE_IN_GAME(false, true);
 
         private final boolean fullAccess;
+        private final boolean allowsKeyEditing;
 
-        Context(boolean fullAccess) {
+        Context(boolean fullAccess, boolean allowsKeyEditing) {
             this.fullAccess = fullAccess;
+            this.allowsKeyEditing = allowsKeyEditing;
         }
 
         boolean allowsDifficulty() {
@@ -71,6 +76,10 @@ public final class SettingsPanel extends JPanel {
         boolean allowsScoreReset() {
             return fullAccess;
         }
+
+        boolean allowsKeyEditing() {
+            return allowsKeyEditing;
+        }
     }
 
     private static final long serialVersionUID = 1L;
@@ -79,42 +88,79 @@ public final class SettingsPanel extends JPanel {
     private static final Color OUTLINE = new Color(75, 75, 75);
     private static final Color MUTED = new Color(170, 170, 170);
     private static final Font BODY_FONT = new Font(Font.DIALOG, Font.PLAIN, 15);
+    private static final int CONTENT_WIDTH = 480;
+    private static final int INNER_WIDTH = 432; // CONTENT_WIDTH (480) - 좌우 패딩 (24 * 2)
+
+    private static final String CARD_SINGLE = "SINGLE";
+    private static final String CARD_BATTLE = "BATTLE";
 
     private final PropertiesAppSettingsService settings;
     private final KeyBindingEditor keyEditor;
     private final KeyBindingsPanel keyBindings;
+    private final BattleKeyBindingEditor battleKeyEditor;
+    private final BattleKeyBindingsPanel battleKeyBindings;
     private final ScoreRepository scores;
     private final Context context;
     private final Runnable onClose;
     private final transient KeyEventDispatcher keyboardDispatcher = this::dispatchKeyboard;
     private final List<List<JComponent>> navigationRows = new ArrayList<>();
-    private final JComboBox<ScreenSize> screenSize = new JComboBox<>(ScreenSize.values());
-    private final JComboBox<Difficulty> difficulty = new JComboBox<>(Difficulty.values());
-    private final JCheckBox colorBlind = new JCheckBox("색맹 모드");
+
+    // 일반 모드 및 대전 모드 옵션 컴포넌트
+    private final ModeOptionsPanel singleOptions;
+    private final ModeOptionsPanel battleOptions;
+
+    // 최상단 탭 버튼 및 CardLayout 컨테이너
+    private final JButton singleModeTab = new JButton("일반 모드");
+    private final JButton battleModeTab = new JButton("대전 모드");
+    private final CardLayout tabCardLayout = new CardLayout();
+    private final JPanel tabBodyContainer = new JPanel(tabCardLayout);
+    private final JPanel singleModePanel = new JPanel();
+    private final JPanel battleModePanel = new JPanel();
+
+    private final List<JComponent> actionButtonsRow = new ArrayList<>();
+    private boolean showingBattleKeys = false;
+
+    private final FocusListener scrollOnFocus = new FocusAdapter() {
+        @Override
+        public void focusGained(FocusEvent event) {
+            if (event.getComponent() instanceof JComponent control) {
+                control.scrollRectToVisible(new Rectangle(control.getSize()));
+            }
+        }
+    };
 
     public SettingsPanel(PropertiesAppSettingsService settings,
             PropertiesKeyConfigService keys, ScoreRepository scores,
             Context context, Runnable onKeysSaved, Runnable onClose) {
+        this(settings, keys, new PropertiesBattleKeyConfigService(), scores,
+                context, onKeysSaved, () -> {}, onClose);
+    }
+
+    public SettingsPanel(PropertiesAppSettingsService settings,
+            PropertiesKeyConfigService keys, PropertiesBattleKeyConfigService battleKeys,
+            ScoreRepository scores, Context context,
+            Runnable onKeysSaved, Runnable onBattleKeysSaved, Runnable onClose) {
         super(new BorderLayout());
         this.settings = Objects.requireNonNull(settings, "settings");
         this.keyEditor = new KeyBindingEditor(Objects.requireNonNull(keys, "keys"),
                 Objects.requireNonNull(onKeysSaved, "onKeysSaved"));
         this.keyBindings = new KeyBindingsPanel(keyEditor);
+        this.battleKeyEditor = new BattleKeyBindingEditor(Objects.requireNonNull(battleKeys, "battleKeys"),
+                Objects.requireNonNull(onBattleKeysSaved, "onBattleKeysSaved"));
+        this.battleKeyBindings = new BattleKeyBindingsPanel(battleKeyEditor);
         this.scores = Objects.requireNonNull(scores, "scores");
         this.context = Objects.requireNonNull(context, "context");
         this.onClose = Objects.requireNonNull(onClose, "onClose");
+        this.singleOptions = new ModeOptionsPanel(context.allowsDifficulty());
+        this.battleOptions = new ModeOptionsPanel(context.allowsDifficulty());
+
+        if (!context.allowsKeyEditing()) {
+            battleKeyBindings.setInteractive(false);
+        }
+
         buildContent();
         loadCurrentValues();
-        for (List<JComponent> row : navigationRows) {
-            for (JComponent control : row) {
-                control.addFocusListener(new FocusAdapter() {
-                    @Override
-                    public void focusGained(FocusEvent event) {
-                        control.scrollRectToVisible(new Rectangle(control.getSize()));
-                    }
-                });
-            }
-        }
+        selectTab(false);
     }
 
     @Override
@@ -123,7 +169,7 @@ public final class SettingsPanel extends JPanel {
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(keyboardDispatcher);
         SwingUtilities.invokeLater(() -> {
             if (isShowing()) {
-                screenSize.requestFocusInWindow();
+                singleModeTab.requestFocusInWindow();
             }
         });
     }
@@ -136,10 +182,20 @@ public final class SettingsPanel extends JPanel {
 
     private boolean dispatchKeyboard(KeyEvent event) {
         if (event.getID() != KeyEvent.KEY_PRESSED
-                || keyBindings.isCapturingKey() || !isShowing()
+                || keyBindings.isCapturingKey()
+                || battleKeyBindings.isCapturingKey()
+                || !isShowing()
                 || !SwingUtilities.isDescendingFrom(event.getComponent(), this)) {
             return false;
         }
+
+        // Tab 키를 누르면 일반 모드 / 대전 모드 탭을 토글한다.
+        if (event.getKeyCode() == KeyEvent.VK_TAB) {
+            selectTab(!showingBattleKeys);
+            event.consume();
+            return true;
+        }
+
         Component focused = event.getComponent();
         // 펼친 선택 목록에서는 Swing의 방향키 선택과 Esc 닫기를 사용한다.
         if (focused instanceof JComboBox<?> combo && combo.isPopupVisible()) {
@@ -231,80 +287,65 @@ public final class SettingsPanel extends JPanel {
         if (choice == JOptionPane.YES_OPTION) {
             saveSettings();
         } else if (choice == JOptionPane.NO_OPTION) {
+            keyEditor.resetChanges();
+            battleKeyEditor.resetChanges();
             close();
         }
     }
 
     private void buildContent() {
         setBackground(BACKGROUND);
-        JPanel content = new JPanel();
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setBackground(BACKGROUND);
-        content.setBorder(BorderFactory.createEmptyBorder(20, 24, 20, 24));
+        JPanel mainContent = new JPanel();
+        mainContent.setLayout(new BoxLayout(mainContent, BoxLayout.Y_AXIS));
+        mainContent.setBackground(BACKGROUND);
+        mainContent.setBorder(BorderFactory.createEmptyBorder(18, 24, 18, 24));
+        mainContent.setPreferredSize(new Dimension(CONTENT_WIDTH, 630));
+
+        // 최상단 타이틀
         JLabel title = new JLabel("설정");
         title.setFont(new Font(Font.DIALOG, Font.BOLD, 26));
         title.setForeground(Color.CYAN);
-        content.add(title);
-        content.add(Box.createVerticalStrut(18));
+        title.setAlignmentX(Component.LEFT_ALIGNMENT);
+        mainContent.add(title);
+        mainContent.add(Box.createVerticalStrut(14));
 
-        JPanel options = new JPanel(new GridLayout(context.allowsDifficulty() ? 3 : 2, 2, 12, 12));
-        options.setBackground(BACKGROUND);
-        options.add(label("화면 크기"));
-        styleCombo(screenSize);
-        options.add(screenSize);
-        if (context.allowsDifficulty()) {
-            options.add(label("난이도"));
-            styleCombo(difficulty);
-            difficulty.setRenderer(new DefaultListCellRenderer() {
-                @Override
-                public Component getListCellRendererComponent(javax.swing.JList<?> list,
-                        Object value, int index, boolean selected, boolean focused) {
-                    super.getListCellRendererComponent(list, value, index, selected, focused);
-                    if (value instanceof Difficulty selectedDifficulty) {
-                        setText(DifficultyLabels.of(selectedDifficulty));
-                    }
-                    setOpaque(true);
-                    setBackground(index >= 0 && selected ? Color.CYAN : SURFACE);
-                    setForeground(index >= 0 && selected ? BACKGROUND : Color.WHITE);
-                    return this;
-                }
-            });
-            options.add(difficulty);
-        }
-        options.add(label("블록 표시"));
-        colorBlind.setFont(BODY_FONT);
-        colorBlind.setBackground(BACKGROUND);
-        colorBlind.setForeground(Color.WHITE);
-        colorBlind.setFocusPainted(true);
-        options.add(colorBlind);
-        content.add(options);
-        navigationRows.add(List.of(screenSize));
-        if (context.allowsDifficulty()) {
-            navigationRows.add(List.of(difficulty));
-        }
-        navigationRows.add(List.of(colorBlind));
-        content.add(Box.createVerticalStrut(8));
-        JLabel sizeHint = label("화면 크기와 색맹 모드는 게임 화면에 적용됩니다.");
-        sizeHint.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
-        sizeHint.setForeground(MUTED);
-        content.add(sizeHint);
-        content.add(Box.createVerticalStrut(24));
-        JLabel section = label("조작 키");
-        section.setForeground(Color.CYAN);
-        section.setFont(new Font(Font.DIALOG, Font.BOLD, 18));
-        content.add(section);
-        content.add(Box.createVerticalStrut(4));
-        JLabel hint = label("키 칸 선택 후 입력  ·  Esc로 해제");
-        hint.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
-        hint.setForeground(MUTED);
-        content.add(hint);
-        content.add(Box.createVerticalStrut(12));
-        content.add(keyBindings);
-        navigationRows.addAll(keyBindings.navigationRows());
+        // 최상단 탭 바 (일반 모드 / 대전 모드)
+        JPanel topTabBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        topTabBar.setBackground(BACKGROUND);
+        topTabBar.setAlignmentX(Component.LEFT_ALIGNMENT);
+        styleButton(singleModeTab, true);
+        styleButton(battleModeTab, false);
+        singleModeTab.addActionListener(event -> selectTab(false));
+        battleModeTab.addActionListener(event -> selectTab(true));
+        topTabBar.add(singleModeTab);
+        topTabBar.add(battleModeTab);
+        mainContent.add(topTabBar);
+        mainContent.add(Box.createVerticalStrut(6));
+
+        JLabel tabHint = label("Tab 키 또는 방향키로 일반/대전 설정을 전환할 수 있습니다.");
+        tabHint.setFont(new Font(Font.DIALOG, Font.PLAIN, 11));
+        tabHint.setForeground(MUTED);
+        tabHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        mainContent.add(tabHint);
+        mainContent.add(Box.createVerticalStrut(14));
+
+        // 일반 모드 패널 및 대전 모드 패널 조립
+        buildSingleModePanel();
+        buildBattleModePanel();
+
+        tabBodyContainer.setBackground(BACKGROUND);
+        tabBodyContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
+        tabBodyContainer.add(singleModePanel, CARD_SINGLE);
+        tabBodyContainer.add(battleModePanel, CARD_BATTLE);
+        mainContent.add(tabBodyContainer);
+
+        // 하단 안내 라벨
         JLabel navigationHint = label("↑ ↓ 항목 이동 · ← → 키 칸/버튼 이동 · Enter 선택");
         navigationHint.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
-        content.add(navigationHint);
+        navigationHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        mainContent.add(navigationHint);
 
+        // 하단 액션 버튼
         JPanel actions = new JPanel();
         actions.setBackground(BACKGROUND);
         actions.setBorder(BorderFactory.createEmptyBorder(12, 12, 16, 12));
@@ -326,17 +367,130 @@ public final class SettingsPanel extends JPanel {
         styleButton(cancel, false);
         cancel.addActionListener(event -> close());
         actions.add(cancel);
-        List<JComponent> actionRow = new ArrayList<>();
-        for (Component component : actions.getComponents()) {
-            actionRow.add((JComponent) component);
-        }
-        navigationRows.add(List.copyOf(actionRow));
 
-        JScrollPane scroll = new JScrollPane(content);
+        actionButtonsRow.clear();
+        for (Component component : actions.getComponents()) {
+            actionButtonsRow.add((JComponent) component);
+        }
+
+        JScrollPane scroll = new JScrollPane(mainContent);
         scroll.setBorder(null);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.getViewport().setBackground(BACKGROUND);
         add(scroll, BorderLayout.CENTER);
         add(actions, BorderLayout.SOUTH);
+    }
+
+    /** 1인(일반) 모드 설정 화면 구성 */
+    private void buildSingleModePanel() {
+        singleModePanel.setLayout(new BoxLayout(singleModePanel, BoxLayout.Y_AXIS));
+        singleModePanel.setBackground(BACKGROUND);
+        singleModePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        singleModePanel.add(singleOptions);
+        singleModePanel.add(Box.createVerticalStrut(18));
+
+        JLabel section = label("1인 조작 키");
+        section.setForeground(Color.CYAN);
+        section.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
+        section.setAlignmentX(Component.LEFT_ALIGNMENT);
+        singleModePanel.add(section);
+        singleModePanel.add(Box.createVerticalStrut(4));
+
+        JLabel keyHint = label("키 칸 선택 후 입력  ·  Esc로 해제");
+        keyHint.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
+        keyHint.setForeground(MUTED);
+        keyHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        keyHint.setPreferredSize(new Dimension(INNER_WIDTH, 18));
+        keyHint.setMaximumSize(new Dimension(INNER_WIDTH, 18));
+        singleModePanel.add(keyHint);
+        singleModePanel.add(Box.createVerticalStrut(10));
+
+        Dimension keyPanelSize = new Dimension(INNER_WIDTH, 230);
+        keyBindings.setAlignmentX(Component.LEFT_ALIGNMENT);
+        keyBindings.setPreferredSize(keyPanelSize);
+        keyBindings.setMaximumSize(keyPanelSize);
+        singleModePanel.add(keyBindings);
+        singleModePanel.add(Box.createVerticalStrut(12));
+    }
+
+    /** 2인 대전 모드 설정 화면 구성 */
+    private void buildBattleModePanel() {
+        battleModePanel.setLayout(new BoxLayout(battleModePanel, BoxLayout.Y_AXIS));
+        battleModePanel.setBackground(BACKGROUND);
+        battleModePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        battleModePanel.add(battleOptions);
+        battleModePanel.add(Box.createVerticalStrut(18));
+
+        JLabel section = label("대전 조작 키 (2인)");
+        section.setForeground(Color.CYAN);
+        section.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
+        section.setAlignmentX(Component.LEFT_ALIGNMENT);
+        battleModePanel.add(section);
+        battleModePanel.add(Box.createVerticalStrut(4));
+
+        String hintText = context.allowsKeyEditing()
+                ? "키 칸 선택 후 입력  ·  Esc로 해제"
+                : "대전 중에는 조작 키를 변경할 수 없습니다.";
+        JLabel keyHint = label(hintText);
+        keyHint.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
+        keyHint.setForeground(MUTED);
+        keyHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        keyHint.setPreferredSize(new Dimension(INNER_WIDTH, 18));
+        keyHint.setMaximumSize(new Dimension(INNER_WIDTH, 18));
+        battleModePanel.add(keyHint);
+        battleModePanel.add(Box.createVerticalStrut(10));
+
+        Dimension keyPanelSize = new Dimension(INNER_WIDTH, 230);
+        battleKeyBindings.setAlignmentX(Component.LEFT_ALIGNMENT);
+        battleKeyBindings.setPreferredSize(keyPanelSize);
+        battleKeyBindings.setMaximumSize(keyPanelSize);
+        battleModePanel.add(battleKeyBindings);
+        battleModePanel.add(Box.createVerticalStrut(12));
+    }
+
+    void selectTab(boolean battle) {
+        keyBindings.cancelKeyCapture();
+        battleKeyBindings.cancelKeyCapture();
+        showingBattleKeys = battle;
+
+        updateTabButtonStyle(singleModeTab, !battle);
+        updateTabButtonStyle(battleModeTab, battle);
+
+        tabCardLayout.show(tabBodyContainer, battle ? CARD_BATTLE : CARD_SINGLE);
+        tabBodyContainer.revalidate();
+        tabBodyContainer.repaint();
+
+        rebuildNavigationRows();
+    }
+
+    private static void updateTabButtonStyle(JButton button, boolean active) {
+        button.setBackground(active ? Color.CYAN : SURFACE);
+        button.setForeground(active ? BACKGROUND : Color.WHITE);
+        setButtonBorder(button, active ? Color.CYAN : OUTLINE);
+    }
+
+    void rebuildNavigationRows() {
+        navigationRows.clear();
+        navigationRows.add(List.of(singleModeTab, battleModeTab));
+
+        if (showingBattleKeys) {
+            navigationRows.addAll(battleOptions.navigationRows());
+            navigationRows.addAll(battleKeyBindings.navigationRows());
+        } else {
+            navigationRows.addAll(singleOptions.navigationRows());
+            navigationRows.addAll(keyBindings.navigationRows());
+        }
+
+        navigationRows.add(List.copyOf(actionButtonsRow));
+
+        for (List<JComponent> row : navigationRows) {
+            for (JComponent control : row) {
+                control.removeFocusListener(scrollOnFocus);
+                control.addFocusListener(scrollOnFocus);
+            }
+        }
     }
 
     static JLabel label(String text) {
@@ -346,52 +500,7 @@ public final class SettingsPanel extends JPanel {
         return label;
     }
 
-    private static void styleCombo(JComboBox<?> combo) {
-        var originalBorder = combo.getBorder();
-        combo.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusGained(FocusEvent event) {
-                combo.setBorder(BorderFactory.createLineBorder(Color.YELLOW));
-            }
 
-            @Override
-            public void focusLost(FocusEvent event) {
-                combo.setBorder(originalBorder);
-            }
-        });
-        combo.setUI(new BasicComboBoxUI() {
-            @Override
-            public void paintCurrentValueBackground(Graphics graphics, Rectangle bounds, boolean focused) {
-                graphics.setColor(SURFACE);
-                graphics.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
-            }
-
-            @Override
-            protected JButton createArrowButton() {
-                JButton arrow = new JButton("▼");
-                arrow.setUI(new BasicButtonUI());
-                arrow.setFont(new Font(Font.DIALOG, Font.PLAIN, 11));
-                arrow.setBackground(SURFACE);
-                arrow.setForeground(Color.CYAN);
-                arrow.setBorder(BorderFactory.createLineBorder(OUTLINE));
-                return arrow;
-            }
-        });
-        combo.setFont(BODY_FONT);
-        combo.setBackground(SURFACE);
-        combo.setForeground(Color.WHITE);
-        combo.setRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(javax.swing.JList<?> list,
-                    Object value, int index, boolean selected, boolean focused) {
-                super.getListCellRendererComponent(list, value, index, selected, focused);
-                setOpaque(true);
-                setBackground(index < 0 ? SURFACE : selected ? Color.CYAN : SURFACE);
-                setForeground(index >= 0 && selected ? BACKGROUND : Color.WHITE);
-                return this;
-            }
-        });
-    }
 
     static void styleButton(JButton button, boolean accent) {
         button.setUI(new BasicButtonUI());
@@ -421,43 +530,75 @@ public final class SettingsPanel extends JPanel {
 
     private void close() {
         keyBindings.cancelKeyCapture();
+        battleKeyBindings.cancelKeyCapture();
         onClose.run();
     }
 
     private void loadCurrentValues() {
         AppSettings current = settings.current();
-        screenSize.setSelectedItem(current.screenSize());
-        difficulty.setSelectedItem(current.difficulty());
-        colorBlind.setSelected(current.colorBlind());
+        singleOptions.setScreenSize(current.screenSize());
+        singleOptions.setDifficulty(current.difficulty());
+        singleOptions.setColorBlind(current.colorBlind());
+
+        battleOptions.setScreenSize(current.battleScreenSize());
+        battleOptions.setDifficulty(current.battleDifficulty());
+        battleOptions.setColorBlind(current.battleColorBlind());
+
         keyBindings.refreshKeys();
+        battleKeyBindings.refreshKeys();
     }
 
     private void restoreDefaults() {
         keyBindings.cancelKeyCapture();
-        screenSize.setSelectedItem(AppSettings.DEFAULT.screenSize());
+        battleKeyBindings.cancelKeyCapture();
+        singleOptions.setScreenSize(AppSettings.DEFAULT.screenSize());
+        battleOptions.setScreenSize(AppSettings.DEFAULT.battleScreenSize());
         if (context.allowsDifficulty()) {
-            difficulty.setSelectedItem(AppSettings.DEFAULT.difficulty());
+            singleOptions.setDifficulty(AppSettings.DEFAULT.difficulty());
+            battleOptions.setDifficulty(AppSettings.DEFAULT.battleDifficulty());
         }
-        colorBlind.setSelected(AppSettings.DEFAULT.colorBlind());
+        singleOptions.setColorBlind(AppSettings.DEFAULT.colorBlind());
+        battleOptions.setColorBlind(AppSettings.DEFAULT.battleColorBlind());
         keyEditor.restoreDefaults();
+        battleKeyEditor.restoreDefaults();
         keyBindings.refreshKeys();
+        battleKeyBindings.refreshKeys();
     }
 
     private void saveSettings() {
         keyBindings.cancelKeyCapture();
+        battleKeyBindings.cancelKeyCapture();
         if (!keyEditor.canSave()) {
+            selectTab(false);
             JOptionPane.showMessageDialog(this, "모든 동작에 메인 키가 필요합니다.", "설정", JOptionPane.WARNING_MESSAGE);
             keyBindings.focusMissingMainKey();
             return;
         }
+        if (!battleKeyEditor.canSave()) {
+            selectTab(true);
+            JOptionPane.showMessageDialog(this, "대전 모드의 모든 조작 키(1P, 2P 총 10개)가 필요합니다.", "설정", JOptionPane.WARNING_MESSAGE);
+            battleKeyBindings.focusMissingKey();
+            return;
+        }
         try {
             keyEditor.save();
+            if (context.allowsKeyEditing()) {
+                battleKeyEditor.save();
+            }
             // 게임 중에는 난이도를 보여주지 않으므로 저장된 값을 그대로 유지한다.
             Difficulty savedDifficulty = context.allowsDifficulty()
-                    ? (Difficulty) difficulty.getSelectedItem()
+                    ? singleOptions.getDifficulty()
                     : settings.current().difficulty();
-            settings.save(new AppSettings((ScreenSize) screenSize.getSelectedItem(),
-                    colorBlind.isSelected(), savedDifficulty));
+            Difficulty savedBattleDifficulty = context.allowsDifficulty()
+                    ? battleOptions.getDifficulty()
+                    : settings.current().battleDifficulty();
+            settings.save(new AppSettings(
+                    singleOptions.getScreenSize(),
+                    singleOptions.isColorBlind(),
+                    savedDifficulty,
+                    battleOptions.getScreenSize(),
+                    battleOptions.isColorBlind(),
+                    savedBattleDifficulty));
             close();
         } catch (RuntimeException e) {
             JOptionPane.showMessageDialog(this,
@@ -468,6 +609,7 @@ public final class SettingsPanel extends JPanel {
 
     private void clearScores() {
         keyBindings.cancelKeyCapture();
+        battleKeyBindings.cancelKeyCapture();
         if (!context.allowsScoreReset()) {
             return;
         }

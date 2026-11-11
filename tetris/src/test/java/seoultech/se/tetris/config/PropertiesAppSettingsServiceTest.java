@@ -14,17 +14,33 @@ import seoultech.se.tetris.engine.Difficulty;
 class PropertiesAppSettingsServiceTest {
     @TempDir Path directory;
 
-    /** 세 설정값을 저장하고 새 서비스에서 다시 불러온다. */
+    /** 일반 모드와 대전 모드 설정값을 모두 저장하고 새 서비스에서 다시 불러온다. */
     @Test
     void savesAndLoadsAllOptions() {
         Path file = directory.resolve("settings.properties");
         var settings = new PropertiesAppSettingsService(file);
-        var selected = new AppSettings(ScreenSize.LARGE, true, Difficulty.HARD);
+        var selected = new AppSettings(ScreenSize.LARGE, true, Difficulty.HARD,
+                ScreenSize.SMALL, false, Difficulty.EASY);
         settings.save(selected);
 
         var restored = new PropertiesAppSettingsService(file);
         restored.load();
         assertEquals(selected, restored.current());
+    }
+
+    /** 대전 모드 설정이 누락된 이전 형식의 파일은 대전 설정을 기본값으로 불러온다. */
+    @Test
+    void legacyFormatFillsBattleSettingsWithDefaults() throws Exception {
+        Path file = directory.resolve("settings.properties");
+        Files.writeString(file, "screenSize=LARGE\ncolorBlind=true\ndifficulty=HARD\n");
+        var settings = new PropertiesAppSettingsService(file);
+        settings.load();
+
+        var expected = new AppSettings(ScreenSize.LARGE, true, Difficulty.HARD,
+                AppSettings.DEFAULT.battleScreenSize(),
+                AppSettings.DEFAULT.battleColorBlind(),
+                AppSettings.DEFAULT.battleDifficulty());
+        assertEquals(expected, settings.current());
     }
 
     /** 설정 파일이 없거나 값이 손상되면 일괄적으로 기본값을 사용한다. */

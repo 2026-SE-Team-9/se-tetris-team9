@@ -1,6 +1,7 @@
 package seoultech.se.tetris.ui.settings;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import seoultech.se.tetris.config.AppSettings.ScreenSize;
 import seoultech.se.tetris.config.PropertiesAppSettingsService;
+import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
 import seoultech.se.tetris.config.PropertiesKeyConfigService;
 import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.score.CsvScoreRepository;
@@ -93,23 +95,37 @@ class SettingsPanelTest {
     private SettingsPanel settingsPanel(Path file, Runnable onClose) {
         return new SettingsPanel(new PropertiesAppSettingsService(file),
                 new PropertiesKeyConfigService(tempDir.resolve(file.getFileName() + ".keys")),
+                new PropertiesBattleKeyConfigService(tempDir.resolve(file.getFileName() + ".battlekeys")),
                 new CsvScoreRepository(tempDir.resolve("scores.csv")), SettingsPanel.Context.START_MENU,
-                () -> {}, onClose);
+                () -> {}, () -> {}, onClose);
     }
 
-    /** 방향키로 설정 항목과 기본·보조 키, 하단 버튼을 이동해도 설정값은 바뀌지 않는다. */
+    /** 방향키로 최상단 탭, 설정 항목, 조작 키, 하단 버튼을 이동해도 설정값은 바뀌지 않는다. */
     @Test
     void arrowNavigationReachesOptionsKeyColumnsAndActions() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             SettingsPanel panel = settingsPanel(tempDir.resolve("navigation.properties"), () -> {});
+            Component singleTab = findButton(panel, "일반 모드");
+            Component battleTab = findButton(panel, "대전 모드");
             JComboBox<?> size = (JComboBox<?>) find(panel, JComboBox.class, 0);
             Component difficulty = find(panel, JComboBox.class, 1);
             Component colorBlind = find(panel, JCheckBox.class, 0);
             Object originalSize = size.getSelectedItem();
+
+            // 최상단 탭 간 좌우 이동
+            assertSame(battleTab, panel.navigationTarget(singleTab, KeyEvent.VK_RIGHT));
+            assertSame(singleTab, panel.navigationTarget(battleTab, KeyEvent.VK_LEFT));
+
+            // 탭에서 아래로 이동 -> 화면 크기
+            assertSame(size, panel.navigationTarget(singleTab, KeyEvent.VK_DOWN));
+            assertSame(singleTab, panel.navigationTarget(size, KeyEvent.VK_UP));
+
+            // 화면 크기 -> 난이도 -> 색맹 모드
             assertSame(difficulty, panel.navigationTarget(size, KeyEvent.VK_DOWN));
             assertSame(size, panel.navigationTarget(difficulty, KeyEvent.VK_UP));
             assertSame(colorBlind, panel.navigationTarget(difficulty, KeyEvent.VK_DOWN));
 
+            // 색맹 모드 -> 1인 조작 키 첫 번째 버튼
             Component mainKey = panel.navigationTarget(colorBlind, KeyEvent.VK_DOWN);
             Component subKey = panel.navigationTarget(mainKey, KeyEvent.VK_RIGHT);
             assertTrue(((JButton) mainKey).getToolTipText().endsWith("기본 키 변경"));
@@ -130,22 +146,83 @@ class SettingsPanelTest {
         });
     }
 
+    /** 1인(일반) 모드와 대전 모드 탭을 전환하면 탐색 대상 행과 화면 구성이 바뀐다. */
+    @Test
+    void tabSwitchingUpdatesNavigationAndPanels() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            SettingsPanel panel = settingsPanel(tempDir.resolve("tab-switch.properties"), () -> {});
+            JButton singleTab = (JButton) findButton(panel, "일반 모드");
+            JButton battleTab = (JButton) findButton(panel, "대전 모드");
+
+            // 대전 모드 탭 선택
+            battleTab.doClick();
+
+            // 대전 모드 탭에서 아래는 대전 화면 크기 -> 대전 난이도 -> 대전 색맹 모드
+            Component battleSize = panel.navigationTarget(battleTab, KeyEvent.VK_DOWN);
+            Component battleDifficulty = panel.navigationTarget(battleSize, KeyEvent.VK_DOWN);
+            Component battleColor = panel.navigationTarget(battleDifficulty, KeyEvent.VK_DOWN);
+
+            // 대전 색맹 모드 아래는 1P 첫 번째 키 버튼
+            Component p1Key = panel.navigationTarget(battleColor, KeyEvent.VK_DOWN);
+            Component p2Key = panel.navigationTarget(p1Key, KeyEvent.VK_RIGHT);
+            assertTrue(((JButton) p1Key).getToolTipText().contains("P1"));
+            assertTrue(((JButton) p2Key).getToolTipText().contains("P2"));
+            assertSame(p2Key, panel.navigationTarget(p1Key, KeyEvent.VK_RIGHT));
+            assertSame(p1Key, panel.navigationTarget(p2Key, KeyEvent.VK_LEFT));
+
+            // 일반 모드 탭으로 다시 복귀
+            singleTab.doClick();
+            Component normalSize = panel.navigationTarget(singleTab, KeyEvent.VK_DOWN);
+            assertSame(find(panel, JComboBox.class, 0), normalSize);
+        });
+    }
+
+    /** 로컬 대전 게임 중 일시정지에서도 대전 키 조작 및 변경이 활성화된다. */
+    @Test
+    void localBattleInGameSettingsAllowsBattleKeyEditing() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            Path file = tempDir.resolve("local-battle-ingame.properties");
+            SettingsPanel panel = new SettingsPanel(new PropertiesAppSettingsService(file),
+                    new PropertiesKeyConfigService(tempDir.resolve("keys.props")),
+                    new PropertiesBattleKeyConfigService(tempDir.resolve("battle.props")),
+                    new CsvScoreRepository(tempDir.resolve("scores.csv")),
+                    SettingsPanel.Context.LOCAL_BATTLE_IN_GAME,
+                    () -> {}, () -> {}, () -> {});
+
+            assertTrue(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsKeyEditing());
+            assertFalse(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsDifficulty());
+            assertFalse(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsScoreReset());
+
+            // 대전 모드 탭으로 전환
+            JButton battleTab = (JButton) findButton(panel, "대전 모드");
+            battleTab.doClick();
+
+            // 대전 키 버튼은 활성화되어 있어야 함
+            JButton p1MoveLeft = (JButton) findButton(panel, "A");
+            assertTrue(p1MoveLeft.isEnabled());
+        });
+    }
+
     private SettingsPanel inGamePanel(Path file) {
         return new SettingsPanel(new PropertiesAppSettingsService(file),
                 new PropertiesKeyConfigService(tempDir.resolve(file.getFileName() + ".keys")),
+                new PropertiesBattleKeyConfigService(tempDir.resolve(file.getFileName() + ".battlekeys")),
                 new CsvScoreRepository(tempDir.resolve("scores.csv")), SettingsPanel.Context.IN_GAME,
-                () -> {}, () -> {});
+                () -> {}, () -> {}, () -> {});
     }
 
-    /** 게임 중 설정에는 난이도 선택이 없고, 시작 메뉴 설정에는 있다. */
+    /** 게임 중 설정에는 일반 모드 난이도 선택이 없고, 시작 메뉴 설정에는 있다. */
     @Test
     void inGameSettingsHideDifficulty() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             SettingsPanel inGame = inGamePanel(tempDir.resolve("in-game.properties"));
             SettingsPanel menu = settingsPanel(tempDir.resolve("menu.properties"), () -> {});
 
-            assertEquals(1, count(inGame, JComboBox.class));
-            assertEquals(2, count(menu, JComboBox.class));
+            // CardLayout에 등록된 컴포넌트 기준:
+            // inGame은 screenSize, battleScreenSize 총 2개
+            assertEquals(2, count(inGame, JComboBox.class));
+            // menu는 screenSize, difficulty, battleScreenSize, battleDifficulty 총 4개
+            assertEquals(4, count(menu, JComboBox.class));
         });
     }
 
@@ -174,8 +251,9 @@ class SettingsPanelTest {
             service.load();
             SettingsPanel panel = new SettingsPanel(service,
                     new PropertiesKeyConfigService(tempDir.resolve("keep-difficulty.keys")),
+                    new PropertiesBattleKeyConfigService(tempDir.resolve("keep-difficulty.battlekeys")),
                     new CsvScoreRepository(tempDir.resolve("scores.csv")), SettingsPanel.Context.IN_GAME,
-                    () -> {}, () -> {});
+                    () -> {}, () -> {}, () -> {});
             @SuppressWarnings("unchecked")
             JComboBox<ScreenSize> size = (JComboBox<ScreenSize>) find(panel, JComboBox.class, 0);
             size.setSelectedItem(ScreenSize.LARGE);
@@ -200,8 +278,9 @@ class SettingsPanelTest {
             service.load();
             SettingsPanel panel = new SettingsPanel(service,
                     new PropertiesKeyConfigService(tempDir.resolve("restore-difficulty.keys")),
+                    new PropertiesBattleKeyConfigService(tempDir.resolve("restore-difficulty.battlekeys")),
                     new CsvScoreRepository(tempDir.resolve("scores.csv")), SettingsPanel.Context.IN_GAME,
-                    () -> {}, () -> {});
+                    () -> {}, () -> {}, () -> {});
             ((JButton) findButton(panel, "모든 설정 기본값")).doClick();
             ((JButton) findButton(panel, "저장")).doClick();
         });
@@ -210,6 +289,88 @@ class SettingsPanelTest {
         restored.load();
         assertEquals(ScreenSize.MEDIUM, restored.current().screenSize());
         assertEquals(Difficulty.HARD, restored.current().difficulty());
+    }
+
+    /** 일반 모드와 대전 모드의 화면 크기, 난이도, 색맹 모드가 상호 참조 없이 각각 독립적으로 적용되고 저장된다. */
+    @Test
+    void singleAndBattleSettingsAreConfiguredIndependently() throws Exception {
+        Path file = tempDir.resolve("independent-settings.properties");
+        SwingUtilities.invokeAndWait(() -> {
+            SettingsPanel panel = settingsPanel(file, () -> {});
+            @SuppressWarnings("unchecked")
+            JComboBox<ScreenSize> singleSize = (JComboBox<ScreenSize>) find(panel, JComboBox.class, 0);
+            @SuppressWarnings("unchecked")
+            JComboBox<Difficulty> singleDifficulty = (JComboBox<Difficulty>) find(panel, JComboBox.class, 1);
+            JCheckBox singleColorBlind = (JCheckBox) find(panel, JCheckBox.class, 0);
+
+            @SuppressWarnings("unchecked")
+            JComboBox<ScreenSize> battleSize = (JComboBox<ScreenSize>) find(panel, JComboBox.class, 2);
+            @SuppressWarnings("unchecked")
+            JComboBox<Difficulty> battleDifficulty = (JComboBox<Difficulty>) find(panel, JComboBox.class, 3);
+            JCheckBox battleColorBlind = (JCheckBox) find(panel, JCheckBox.class, 1);
+
+            // 일반 모드 설정을 변경해도 대전 모드 설정은 영향받지 않는다.
+            singleSize.setSelectedItem(ScreenSize.LARGE);
+            singleDifficulty.setSelectedItem(Difficulty.HARD);
+            singleColorBlind.setSelected(true);
+
+            assertEquals(ScreenSize.MEDIUM, battleSize.getSelectedItem());
+            assertEquals(Difficulty.DEFAULT, battleDifficulty.getSelectedItem());
+            assertFalse(battleColorBlind.isSelected());
+
+            // 대전 모드 설정을 다른 값으로 변경해도 일반 모드 설정은 영향받지 않는다.
+            battleSize.setSelectedItem(ScreenSize.SMALL);
+            battleDifficulty.setSelectedItem(Difficulty.EASY);
+            battleColorBlind.setSelected(false);
+
+            assertEquals(ScreenSize.LARGE, singleSize.getSelectedItem());
+            assertEquals(Difficulty.HARD, singleDifficulty.getSelectedItem());
+            assertTrue(singleColorBlind.isSelected());
+
+            ((JButton) findButton(panel, "저장")).doClick();
+        });
+
+        PropertiesAppSettingsService restored = new PropertiesAppSettingsService(file);
+        restored.load();
+        assertEquals(ScreenSize.LARGE, restored.current().screenSize());
+        assertEquals(Difficulty.HARD, restored.current().difficulty());
+        assertTrue(restored.current().colorBlind());
+
+        assertEquals(ScreenSize.SMALL, restored.current().battleScreenSize());
+        assertEquals(Difficulty.EASY, restored.current().battleDifficulty());
+        assertFalse(restored.current().battleColorBlind());
+    }
+
+    /** 게임 중 설정 저장 시 일반 난이도뿐 아니라 대전 난이도도 기존 저장값을 유지한다. */
+    @Test
+    void inGameSaveKeepsBothSingleAndBattleStoredDifficulty() throws Exception {
+        Path file = tempDir.resolve("keep-both-difficulties.properties");
+        PropertiesAppSettingsService initial = new PropertiesAppSettingsService(file);
+        initial.save(new seoultech.se.tetris.config.AppSettings(
+                ScreenSize.SMALL, false, Difficulty.HARD,
+                ScreenSize.LARGE, true, Difficulty.EASY));
+
+        SwingUtilities.invokeAndWait(() -> {
+            PropertiesAppSettingsService service = new PropertiesAppSettingsService(file);
+            service.load();
+            SettingsPanel panel = new SettingsPanel(service,
+                    new PropertiesKeyConfigService(tempDir.resolve("keep-diff.keys")),
+                    new PropertiesBattleKeyConfigService(tempDir.resolve("keep-diff.battlekeys")),
+                    new CsvScoreRepository(tempDir.resolve("scores.csv")), SettingsPanel.Context.IN_GAME,
+                    () -> {}, () -> {}, () -> {});
+            @SuppressWarnings("unchecked")
+            JComboBox<ScreenSize> singleSize = (JComboBox<ScreenSize>) find(panel, JComboBox.class, 0);
+            singleSize.setSelectedItem(ScreenSize.MEDIUM);
+            ((JButton) findButton(panel, "저장")).doClick();
+        });
+
+        PropertiesAppSettingsService restored = new PropertiesAppSettingsService(file);
+        restored.load();
+        assertEquals(ScreenSize.MEDIUM, restored.current().screenSize());
+        assertEquals(Difficulty.HARD, restored.current().difficulty());
+        assertEquals(ScreenSize.LARGE, restored.current().battleScreenSize());
+        assertEquals(Difficulty.EASY, restored.current().battleDifficulty());
+        assertTrue(restored.current().battleColorBlind());
     }
 
     private static int count(Container root, Class<?> type) {

@@ -13,6 +13,7 @@ import seoultech.se.tetris.ui.scoreboard.ScoreboardModel;
 import seoultech.se.tetris.ui.scoreboard.ScoreboardPanel;
 import seoultech.se.tetris.ui.settings.SettingsPanel;
 import seoultech.se.tetris.config.PropertiesAppSettingsService;
+import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
 import seoultech.se.tetris.config.PropertiesKeyConfigService;
 import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.engine.GameMode;
@@ -75,8 +76,10 @@ public final class TetrisApplication implements ScreenNavigator {
         settings.load();
         PropertiesKeyConfigService keys = new PropertiesKeyConfigService();
         keys.load();
-        menu.showSettings(new SettingsPanel(settings, keys, new CsvScoreRepository(),
-                SettingsPanel.Context.START_MENU, () -> {}, () -> menu.showMenu()));
+        PropertiesBattleKeyConfigService battleKeys = new PropertiesBattleKeyConfigService();
+        battleKeys.load();
+        menu.showSettings(new SettingsPanel(settings, keys, battleKeys, new CsvScoreRepository(),
+                SettingsPanel.Context.START_MENU, () -> {}, () -> {}, () -> menu.showMenu()));
     }
 
     @Override
