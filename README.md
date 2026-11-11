@@ -7,7 +7,7 @@
 |---|---|
 | 언어 / UI | Java 21, Swing |
 | 빌드 | Gradle (Wrapper 포함) |
-| 테스트 | JUnit 5, JaCoCo (라인 커버리지 기준 50%) |
+| 테스트 | JUnit 5, JaCoCo (라인 커버리지 기준 70%) |
 | 대상 OS | Windows 11 (실행 파일 패키징 기준) |
 | 이슈 관리 | Jira + GitHub Issue |
 
@@ -192,7 +192,7 @@ Windows에서는 `C:\Users\<사용자 이름>\.tetris` 폴더입니다.
 # 단위 테스트 + 커버리지 보고서 (tetris/build/reports/jacoco/test/html/index.html)
 .\gradlew.bat :tetris:test
 
-# 라인 커버리지 50% 기준 검사
+# 라인 커버리지 70% 기준 검사
 .\gradlew.bat :tetris:jacocoTestCoverageVerification
 ```
 

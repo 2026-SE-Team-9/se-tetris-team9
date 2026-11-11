@@ -84,7 +84,7 @@ jobs:
 
           with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a', encoding='utf-8') as summary:
               summary.write('### JaCoCo 커버리지 결과\n\n')
-              summary.write(f'- 라인 커버리지: **{coverage}** (기준: 50%)\n')
+              summary.write(f'- 라인 커버리지: **{coverage}** (기준: 70%)\n')
               summary.write('- 상세 보고서: 실행 페이지의 `jacoco-coverage-reports` 아티팩트\n')
 
           assert execution_data.is_file() and execution_data.stat().st_size > 0, 'JaCoCo execution data is missing'
