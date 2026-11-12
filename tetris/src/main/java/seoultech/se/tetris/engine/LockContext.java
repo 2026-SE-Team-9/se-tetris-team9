@@ -37,9 +37,10 @@ final class LockContext {
         return board.fullRows();
     }
 
-    /** 고정되는 블럭을 지금 위치에 놓는다. */
+    /** 고정되는 블럭을 지금 위치에 놓는다. 놓은 블럭은 {@link ClearPlan}에 기록된다. */
     void placeBlock() {
         board.place(block);
+        plan.setPlacedBlock(block);
     }
 
     /** 지정한 줄을 줄 삭제로 지운다. 점수, 10줄 카운트, 백투백에 반영된다. 비어 있으면 아무 일도 하지 않는다. */

@@ -11,8 +11,11 @@ import seoultech.se.tetris.blocks.BlockFactory;
 import seoultech.se.tetris.blocks.BlockType;
 import seoultech.se.tetris.blocks.ItemFactory;
 import seoultech.se.tetris.component.controller.GameController;
+import seoultech.se.tetris.component.controller.VersusController;
 import seoultech.se.tetris.component.listener.GameEventListener;
+import seoultech.se.tetris.component.model.Attack;
 import seoultech.se.tetris.component.model.GameState;
+import seoultech.se.tetris.component.model.GarbageLine;
 
 /**
  * 게임 진행을 담당한다.
@@ -23,12 +26,13 @@ import seoultech.se.tetris.component.model.GameState;
  * <p>하나의 객체가 {@link GameState}와 {@link GameController}를 모두 구현한다.
  * 같은 데이터를 보는 두 가지 창구이며, 화면 쪽에는 읽기용({@code GameState})으로,
  * 조작 쪽에는 명령용({@code GameController})으로 넘기면 각자에게 필요한 면만 보인다.
+ * 대전 모드에서는 대전을 진행하는 쪽에 {@link VersusController}를 넘긴다.
  *
  * <p><b>타이머를 갖지 않는다.</b> {@link #moveDown()}이 호출되면 반응할 뿐이며,
  * 주기적으로 부르는 것은 조작 쪽의 일이다. 덕분에 실제 시간을 기다리지 않고
  * {@code moveDown()}을 반복 호출하는 방식으로 게임 전체를 테스트할 수 있다.
  */
-public class TetrisEngine implements GameState, GameController {
+public class TetrisEngine implements GameState, GameController, VersusController {
 
     /** 내부에서 미리 뽑아 두는 다음 블럭 수. 화면에 표시하는 숫자와는 무관하다. */
     public static final int NEXT_QUEUE_SIZE = 5;
@@ -38,6 +42,13 @@ public class TetrisEngine implements GameState, GameController {
 
     /** 아이템이 생성되는 줄 간격. 10줄마다 하나씩 생성된다. */
     public static final int ITEM_LINE_INTERVAL = 10;
+
+    /**
+     * 아이템 생성기의 시드를 블럭 생성기와 다르게 만들기 위한 값.
+     * 같은 수열을 쓰면 블럭과 아이템이 서로 맞물린다.
+     * 상수 값과 상관없이 동작은 같다.
+     */
+    private static final long ITEM_SEED_SALT = 0x5DEECE66DL;
 
     /* 각 component들의 객체 */
     private final Board board;
@@ -68,6 +79,23 @@ public class TetrisEngine implements GameState, GameController {
 
     /** 애니메이션이 끝나면 적용할 계획. 애니메이션 중이 아니면 {@code null}. */
     private ClearPlan pendingPlan;
+
+    /** 대전 모드에서 상대에게 받은, 보드에 들어가기 전의 공격 줄 */
+    private final GarbageQueue garbageQueue = new GarbageQueue();
+
+    /**
+     * 마지막으로 고정한 블럭만 그려 둔 보드. 대전 모드의 공격 줄을 만들 때 쓴다.
+     *
+     * <p>실제 보드에 하는 줄 삭제·칸 제거·짓누르기를 똑같이 적용해, 그 블럭이 최종적으로 놓인 위치를 따라간다.
+     * 덕분에 무게추(바닥으로 내려앉음)나 Crusher(짓누른 만큼 내려감)처럼 고정한 뒤 위치가 바뀌는 아이템도
+     * 따로 계산하지 않고 "줄을 지운 블럭의 칸"을 찾을 수 있다.
+     */
+    private final Board lastBlockBoard = new Board();
+
+    /**
+     * 제한 시간 종료로 남은 처리를 마무리하는 중인지. 이때 생기는 공격은 보내지 않는다. (3차 팀 결정)
+     */
+    private boolean finishingByTimeUp;
 
     /**
      * 게임의 상태. 진행중, 일시정지, 줄 삭제 애니메이션, 종료 상태를 나타낸다.
@@ -112,6 +140,20 @@ public class TetrisEngine implements GameState, GameController {
      */
     public TetrisEngine(BlockFactory blockFactory, ItemFactory itemFactory, GameMode mode) {
         this(blockFactory, itemFactory, mode, new Board());
+    }
+
+    /**
+     * 대전용. 같은 시드로 만든 엔진끼리는 블럭과 아이템의 등장 순서가 같다. (3차 팀 결정)
+     *
+     * @param seed       두 플레이어가 공유하는 시드
+     * @param difficulty 난이도. 블럭 등장 확률에 영향을 주므로 두 플레이어가 같아야 순서도 같다
+     * @param mode       게임 모드
+     */
+    public static TetrisEngine seeded(long seed, Difficulty difficulty, GameMode mode) {
+        return new TetrisEngine(
+                new BlockFactory(new Random(seed), difficulty),
+                new ItemFactory(new Random(seed ^ ITEM_SEED_SALT)),
+                mode);
     }
 
     /**
@@ -185,6 +227,12 @@ public class TetrisEngine implements GameState, GameController {
         }
     }
 
+    private void fireAttack(Attack attack) {
+        for (GameEventListener listener : listeners) {
+            listener.onAttack(attack);
+        }
+    }
+
     // ------------------------------------------------------------------
     // 진행
     // ------------------------------------------------------------------
@@ -203,6 +251,8 @@ public class TetrisEngine implements GameState, GameController {
         level = LevelPolicy.INITIAL_LEVEL;
         lastClearWasBackToBackEligible = false;
         pendingPlan = null;
+        garbageQueue.clear();
+        lastBlockBoard.reset();
         status = Status.PLAYING;
 
         fillQueue();
@@ -252,6 +302,10 @@ public class TetrisEngine implements GameState, GameController {
     private void lockCurrentBlock() {
         LockContext context = new LockContext(board, current);
         ItemEffects.of(current.item()).onLock(context);
+        lastBlockBoard.reset();
+        if (context.plan().placedBlock() != null) {
+            lastBlockBoard.place(context.plan().placedBlock());
+        }
         runPlan(context.plan());
     }
 
@@ -293,13 +347,18 @@ public class TetrisEngine implements GameState, GameController {
         }
         for (int[] cell : plan.removedCells()) {
             board.clearCell(cell[0], cell[1]);
+            lastBlockBoard.clearCell(cell[0], cell[1]);
         }
+        // 칸을 내리는 효과는 Tall Boy뿐이고 Tall Boy는 자신이 사라지므로 마지막 블럭 보드에는 따라갈 칸이 없다.
         for (int[] column : plan.dropColumns()) {
             board.dropAbove(column[0], column[1]);
         }
         board.removeRows(plan.crushedRows());
+        lastBlockBoard.removeRows(plan.crushedRows());
         if (plan.placeAfterRemoval() != null) {
             board.place(plan.placeAfterRemoval());
+            lastBlockBoard.reset();
+            lastBlockBoard.place(plan.placeAfterRemoval());
         }
         score += scoreCalculator.itemScore(plan.itemScoreCells(), level);
     }
@@ -313,10 +372,14 @@ public class TetrisEngine implements GameState, GameController {
      * <p>백투백은 직전 줄 삭제와 이번 줄 삭제가 모두 백투백 조건(4줄 동시 삭제)을 만족할 때 적용되며,
      * 연속으로 만족하는 동안 계속 이어진다. 조건 미만의 줄을 지우면 끊기고, 줄을 지우지 않는 동작은 영향이 없다.
      * 무게추·Tall Boy·Crusher의 효과는 줄 삭제가 아니므로 백투백에 영향을 주지 않는다.
+     *
+     * <p>지우기 전에 대전 모드의 공격 줄을 만들고 줄 삭제를 반영한 후 상대에게 보낼 공격을 알린다.
      */
     private void applyLineClear(ClearPlan plan) {
         int cleared = plan.lineRows().size();
+        Attack attack = attackFrom(plan.lineRows());
         board.removeRows(plan.lineRows());
+        lastBlockBoard.removeRows(plan.lineRows());
 
         boolean backToBack = lastClearWasBackToBackEligible
                 && scoreCalculator.isBackToBackEligible(cleared);
@@ -331,6 +394,9 @@ public class TetrisEngine implements GameState, GameController {
             scheduleItemBlock();
         }
         fireLinesCleared(cleared, gained);
+        if (attack != null && !finishingByTimeUp) {
+            fireAttack(attack);
+        }
     }
 
     /** 줄 삭제였으면 다음 블럭, 아이템 효과였으면 꽉 찬 줄을 다시 확인해 일반 줄 삭제로 처리한다. */
@@ -383,8 +449,17 @@ public class TetrisEngine implements GameState, GameController {
      *
      * <p>애니메이션 도중 게임 종료 조건이 생겨도 생성은 애니메이션이 끝난 뒤에 하므로,
      * 게임 오버는 항상 애니메이션을 마친 뒤에 알린다.
+     *
+     * <p>대전 모드에서 받은 공격 줄이 있으면 생성하기 직전에 모두 보드 아래쪽에 추가한다.
+     * 추가하면서 보드 위로 밀려나는 칸이 생기면 즉시 게임 오버가 된다. (3차 팀 결정)
      */
     private void spawnNextAndNotify() {
+        if (!garbageQueue.isEmpty() && board.addGarbageLines(garbageQueue.drain())) {
+            status = Status.OVER;
+            fireBoardUpdated();
+            fireGameOver(score);
+            return;
+        }
         spawnNext();
         fireBoardUpdated();
         if (status == Status.OVER) {
@@ -405,6 +480,79 @@ public class TetrisEngine implements GameState, GameController {
         current = candidate;
         fireBoardUpdated();
         return true;
+    }
+
+    /** 대전 모드에서 공격 줄을 계산한다. */
+    private Attack attackFrom(List<Integer> rows) {
+        List<Integer> fullRows = board.fullRows();
+        List<GarbageLine> lines = new ArrayList<>();
+        for (int row = 0; row < Board.HEIGHT; row++) {   // 위에서 아래 순서로 담는다
+            if (!rows.contains(row) || !fullRows.contains(row)) {
+                continue;
+            }
+            boolean[] filled = new boolean[Board.WIDTH];
+            boolean hasLastBlock = false;
+            for (int col = 0; col < Board.WIDTH; col++) {
+                boolean lastBlockCell = !lastBlockBoard.isEmpty(row, col);
+                filled[col] = !lastBlockCell;
+                hasLastBlock |= lastBlockCell;
+            }
+            if (hasLastBlock) {
+                lines.add(new GarbageLine(filled));
+            }
+        }
+        return lines.size() >= Attack.MIN_LINES ? new Attack(lines) : null;
+    }
+
+    // ------------------------------------------------------------------
+    // VersusController
+    // ------------------------------------------------------------------
+
+    /**
+     * 상대방의 공격을 받는다.
+     *
+     * <p>게임이 끝난 뒤(제한 시간 종료 포함)에는 공격을 무시한다. 이때는 공격 줄의 폭도 검사하지 않는다.
+     */
+    @Override
+    public void receiveAttack(Attack attack) {
+        Objects.requireNonNull(attack, "공격은 null일 수 없습니다.");
+        if (status == Status.OVER) {
+            return;
+        }
+        if (garbageQueue.add(attack) > 0) {
+            fireBoardUpdated();
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>이때 생기는 줄 삭제는 점수에 반영하지만, 상대에게 보낼 공격은 만들지 않는다. (3차 팀 결정)
+     */
+    @Override
+    public void finishByTimeUp() {
+        if (status == Status.OVER) {
+            return;
+        }
+        if (status == Status.CLEARING) {
+            finishingByTimeUp = true;
+            try {
+                ClearPlan plan = pendingPlan;
+                pendingPlan = null;
+                applyPlan(plan);
+                // 아이템 효과로 줄이 채워졌으면 이어지는 일반 줄 삭제까지 마친다 (continueAfter와 같은 판단)
+                List<Integer> fullRows = board.fullRows();
+                if (!plan.isLineClear() && !fullRows.isEmpty()) {
+                    ClearPlan lineClear = new ClearPlan();
+                    lineClear.setLineClear(board, fullRows);
+                    applyPlan(lineClear);
+                }
+            } finally {
+                finishingByTimeUp = false;
+            }
+        }
+        status = Status.OVER;
+        fireBoardUpdated();
     }
 
     // ------------------------------------------------------------------
@@ -669,5 +817,10 @@ public class TetrisEngine implements GameState, GameController {
     /** 현재 게임 난이도. 점수 기록에도 동일한 난이도를 기록한다. */
     public Difficulty getDifficulty() {
         return difficulty;
+    }
+
+    @Override
+    public List<GarbageLine> getPendingGarbage() {
+        return garbageQueue.lines();
     }
 }

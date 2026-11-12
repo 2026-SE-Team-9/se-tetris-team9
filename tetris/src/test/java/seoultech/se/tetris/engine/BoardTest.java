@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static seoultech.se.tetris.component.model.GarbageLineFixtures.line;
 
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import seoultech.se.tetris.blocks.Block;
 import seoultech.se.tetris.blocks.BlockType;
+import seoultech.se.tetris.blocks.CellCode;
 import seoultech.se.tetris.blocks.ItemType;
 
 @DisplayName("Board")
@@ -563,6 +565,96 @@ class BoardTest {
             board.reset();
 
             assertArrayEquals(new int[Board.VISIBLE_HEIGHT][Board.WIDTH], board.snapshot());
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // addGarbageLines (대전 모드)
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("addGarbageLines()")
+    class AddGarbageLines {
+
+        @Test
+        @DisplayName("공격 줄을 받은 순서대로 맨 아래에 쌓고, 기존 칸은 그 줄 수만큼 위로 올라간다")
+        void pushesExistingRowsUp() {
+            Board board = boardWithBottomRows(
+                    "XX........",
+                    "XXXX.XXXXX"
+            );
+
+            boolean overflow = board.addGarbageLines(List.of(line("XXX.XXXXXX"), line(".XXXXXXXXX")));
+
+            assertFalse(overflow);
+            assertEquals("XX........", rowOf(board, Board.HEIGHT - 4));
+            assertEquals("XXXX.XXXXX", rowOf(board, Board.HEIGHT - 3));
+            assertEquals("XXX.XXXXXX", rowOf(board, Board.HEIGHT - 2));
+            assertEquals(".XXXXXXXXX", rowOf(board, Board.HEIGHT - 1));
+        }
+
+        @Test
+        @DisplayName("추가한 줄의 채워진 칸은 공격 칸이 된다")
+        void filledCellsBecomeGarbage() {
+            Board board = new Board();
+
+            board.addGarbageLines(List.of(line("XXX.XXXXXX"), line("XXXX.XXXXX")));
+
+            assertEquals(CellCode.GARBAGE, board.codeAt(Board.HEIGHT - 1, 0));
+            assertTrue(board.isEmpty(Board.HEIGHT - 1, 4));
+            assertEquals(CellCode.GARBAGE, board.codeAt(Board.HEIGHT - 2, 0));
+            assertTrue(board.isEmpty(Board.HEIGHT - 2, 3));
+        }
+
+        @Test
+        @DisplayName("밀려 올라갈 맨 위 줄들이 비어 있으면 넘치지 않는다")
+        void noOverflowWhenTopIsEmpty() {
+            Board board = boardWithBottomRows(rowsFilledExceptTop(2));
+
+            assertFalse(board.addGarbageLines(List.of(line("XXX.XXXXXX"), line("XXX.XXXXXX"))));
+        }
+
+        @Test
+        @DisplayName("보드 위로 밀려나는 칸이 있으면 넘쳤다고 알리고, 그 칸은 사라진다")
+        void reportsOverflow() {
+            int[][] grid = new int[Board.HEIGHT][Board.WIDTH];
+            grid[1][5] = BlockType.T.code();
+            Board board = new Board(grid);
+
+            boolean overflow = board.addGarbageLines(List.of(line("XXX.XXXXXX"), line("XXX.XXXXXX")));
+
+            assertTrue(overflow);
+            for (int r = 0; r < Board.HEIGHT - 2; r++) {
+                assertEquals("..........", rowOf(board, r), "행 " + r);
+            }
+        }
+
+        @Test
+        @DisplayName("빈 목록이면 보드가 바뀌지 않는다")
+        void emptyListChangesNothing() {
+            Board board = boardWithBottomRows("XXXX.XXXXX");
+            int[][] before = board.snapshot();
+
+            assertFalse(board.addGarbageLines(List.of()));
+            assertArrayEquals(before, board.snapshot());
+        }
+
+        @Test
+        @DisplayName("공격 줄의 폭이 보드 폭과 다르면 예외를 던지고 보드를 바꾸지 않는다")
+        void rejectsWrongWidth() {
+            Board board = boardWithBottomRows("XXXX.XXXXX");
+            int[][] before = board.snapshot();
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> board.addGarbageLines(List.of(line("XXX.XXXXXX"), line("XXX.XXXXX"))));
+            assertArrayEquals(before, board.snapshot());
+        }
+
+        /** 맨 위 {@code emptyTop}줄만 비우고 나머지 줄은 한 칸씩 빈 상태로 채운 줄 목록 (아래쪽부터 보드에 들어감) */
+        private String[] rowsFilledExceptTop(int emptyTop) {
+            String[] rows = new String[Board.HEIGHT - emptyTop];
+            java.util.Arrays.fill(rows, "XXXX.XXXXX");
+            return rows;
         }
     }
 }

@@ -43,6 +43,14 @@ final class ClearPlan {
     private Block placeAfterRemoval;
 
     /**
+     * 고정하면서 바로 보드에 놓은 블럭.
+     * 놓지 않고 사라지는 아이템(Tall Boy)이나 삭제를 마친 뒤에 놓는 아이템(무게추)은 {@code null}이다.
+     *
+     * <p>대전 모드에서 공격 줄을 만들 때, 줄을 지운 블럭이 최종적으로 어디에 놓였는지 따라가는 출발점이다.
+     */
+    private Block placedBlock;
+
+    /**
      * 줄 삭제 계획을 정한다.
      *
      * <p>지울 줄 중 <b>가득 찬 줄</b>에 있는 아이템 칸의 배수를 계산해 둔다. 가득 차지 않은 줄
@@ -89,6 +97,10 @@ final class ClearPlan {
         placeAfterRemoval = block;
     }
 
+    void setPlacedBlock(Block block) {
+        placedBlock = block;
+    }
+
     /** 줄 삭제 계획인지 여부 */
     boolean isLineClear() {
         return !lineRows.isEmpty();
@@ -121,6 +133,11 @@ final class ClearPlan {
 
     Block placeAfterRemoval() {
         return placeAfterRemoval;
+    }
+
+    /** 고정하면서 바로 보드에 놓은 블럭. 없으면 {@code null} */
+    Block placedBlock() {
+        return placedBlock;
     }
 
     /** 애니메이션 동안 표시할, 지워질 칸. 보드 전체 크기다. */

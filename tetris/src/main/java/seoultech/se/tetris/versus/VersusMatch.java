@@ -3,6 +3,7 @@ package seoultech.se.tetris.versus;
 import java.time.Duration;
 import java.util.Optional;
 import seoultech.se.tetris.component.controller.GameController;
+import seoultech.se.tetris.component.listener.GameEventListener;
 import seoultech.se.tetris.component.model.GameState;
 
 /**
@@ -16,9 +17,10 @@ import seoultech.se.tetris.component.model.GameState;
  *
  * <p>담당별로 주로 쓰는 메서드는 다음과 같다.
  * <ul>
- *   <li>화면: {@link #state}, {@link #mode}, {@link #phase}, {@link #result}, {@link #addListener}</li>
+ *   <li>화면: {@link #state}, {@link #mode}, {@link #phase}, {@link #result},
+ *       {@link #addListener}, {@link #addGameListener}</li>
  *   <li>조작·흐름: {@link #controller}, {@link #begin}, {@link #pause}, {@link #resume}, {@link #timeUp},
- *       {@link #quit}, {@link #addListener}</li>
+ *       {@link #quit}, {@link #addListener}, {@link #addGameListener}</li>
  * </ul>
  */
 public interface VersusMatch {
@@ -46,6 +48,18 @@ public interface VersusMatch {
     void addListener(MatchListener listener);
 
     void removeListener(MatchListener listener);
+
+    /**
+     * 그 자리의 게임 이벤트(보드 변화, 줄 삭제, 속도 변화 등)를 받을 대상을 등록한다.
+     *
+     * <p>화면 갱신, 낙하 타이머, 줄 삭제 애니메이션 타이머처럼 1인용에서 엔진에 직접 등록하던 것을 여기에 등록한다.
+     * 대전의 끝은 {@link GameEventListener#onGameOver(int)}가 아니라 {@link MatchListener}로 받는다.
+     * 대전은 한쪽의 게임 오버를 받는 즉시 결과를 정하고 두 게임을 모두 멈추며,
+     * 제한 시간 종료처럼 게임 오버 알림 없이 끝나는 경우도 있기 때문이다.
+     */
+    void addGameListener(Side side, GameEventListener listener);
+
+    void removeGameListener(Side side, GameEventListener listener);
 
     /**
      * 카운트다운이 끝나 대전을 시작한다. {@link MatchPhase#READY}에서 {@link MatchPhase#PLAYING}이 된다.

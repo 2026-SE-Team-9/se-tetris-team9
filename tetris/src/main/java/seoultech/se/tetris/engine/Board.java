@@ -5,6 +5,8 @@ import java.util.Collection;
 import java.util.List;
 import seoultech.se.tetris.blocks.Block;
 import seoultech.se.tetris.blocks.BlockType;
+import seoultech.se.tetris.blocks.CellCode;
+import seoultech.se.tetris.component.model.GarbageLine;
 
 /**
  * 블럭이 쌓이는 20줄 × 10칸의 보드
@@ -12,8 +14,9 @@ import seoultech.se.tetris.blocks.BlockType;
  * <p>고정된 블럭들만 보관한다. 현재 떨어지고 있는 블럭은 이 안에 없으며,
  * 바닥이나 다른 블럭에 닿아 더 내려갈 수 없을 때 {@link #place(Block)}로 들어온다.
  *
- * <p>각 칸에는 칸 번호가 저장된다. 테트로미노는 {@link BlockType#code()}, 아이템은 {@link seoultech.se.tetris.blocks.ItemType#code()}이며
- * 빈 칸은 {@link seoultech.se.tetris.blocks.CellCode#EMPTY}다. 번호와 종류의 대응은 {@link seoultech.se.tetris.blocks.CellCode}에서 확인한다.
+ * <p>각 칸에는 칸 번호가 저장된다. 테트로미노는 {@link BlockType#code()}, 아이템은 {@link seoultech.se.tetris.blocks.ItemType#code()},
+ * 대전 모드의 공격 칸은 {@link CellCode#GARBAGE}이며 빈 칸은 {@link seoultech.se.tetris.blocks.CellCode#EMPTY}다.
+ * 번호와 종류의 대응은 {@link seoultech.se.tetris.blocks.CellCode}에서 확인한다.
  * <p>계층 규칙에 따라 색을 저장하지 않으므로 색맹 모드 전환은 이 클래스에 영향을 주지 않는다.
  * <p>(계층 규칙 2 — 모델은 색을 모른다)
  */
@@ -130,7 +133,7 @@ public class Board {
         return grid[row][col] == BlockType.EMPTY_CODE;
     }
 
-    /** 지정한 칸의 칸 번호. 테트로미노 또는 아이템 번호이며, 빈 칸이면 {@link seoultech.se.tetris.blocks.CellCode#EMPTY}. 해석은 {@link seoultech.se.tetris.blocks.CellCode}를 거친다. */
+    /** 지정한 칸의 칸 번호. 테트로미노, 아이템, 공격 칸 번호이며, 빈 칸이면 {@link seoultech.se.tetris.blocks.CellCode#EMPTY}. 해석은 {@link seoultech.se.tetris.blocks.CellCode}를 거친다. */
     public int codeAt(int row, int col) {
         return grid[row][col];
     }
@@ -179,6 +182,55 @@ public class Board {
             grid[row + gap][col] = grid[row][col];
             grid[row][col] = BlockType.EMPTY_CODE;
         }
+    }
+
+    /**
+     * 공격 줄을 보드 맨 아래에 추가하고, 기존 칸들을 추가한 줄 수만큼 위로 밀어 올린다. (3차 「줄 공격」)
+     *
+     * <p>줄은 위에서 아래 순서로 받으며 받은 순서 그대로 보드 맨 아래에 쌓인다.
+     * 공격 줄의 채워진 칸은 공격 칸({@link CellCode#GARBAGE})이 된다.
+     *
+     * <p>밀려 올라가다 보드 위로 넘친 칸은 사라진다.
+     * 이때 게임을 끝낼지는 호출하는 쪽이 정하도록 넘친 칸이 있었는지만 알려준다.
+     *
+     * @param lines 위에서 아래 순서의 공격 줄
+     * @return 보드 위로 밀려나 사라진 칸이 있으면 {@code true}
+     * @throws IllegalArgumentException 줄의 폭이 보드 폭과 다르거나, 줄 수가 보드 줄 수보다 많은 경우.
+     *         이때 보드는 바뀌지 않는다
+     */
+    public boolean addGarbageLines(List<GarbageLine> lines) {
+        int count = lines.size();
+        if (count > HEIGHT) {
+            throw new IllegalArgumentException("보드 줄 수보다 많은 공격 줄입니다: " + count);
+        }
+        for (GarbageLine line : lines) {
+            if (line.width() != WIDTH) {
+                throw new IllegalArgumentException("공격 줄은 " + WIDTH + "칸이어야 합니다: " + line.width());
+            }
+        }
+
+        // 위로 밀려날 맨 위 count줄에 칸이 있으면 넘친다
+        boolean overflow = false;
+        for (int r = 0; r < count && !overflow; r++) {
+            for (int c = 0; c < WIDTH; c++) {
+                if (grid[r][c] != BlockType.EMPTY_CODE) {
+                    overflow = true;
+                    break;
+                }
+            }
+        }
+
+        for (int r = 0; r < HEIGHT - count; r++) {
+            System.arraycopy(grid[r + count], 0, grid[r], 0, WIDTH);
+        }
+        for (int i = 0; i < count; i++) {
+            GarbageLine line = lines.get(i);
+            int row = HEIGHT - count + i;
+            for (int c = 0; c < WIDTH; c++) {
+                grid[row][c] = line.isFilled(c) ? CellCode.GARBAGE : BlockType.EMPTY_CODE;
+            }
+        }
+        return overflow;
     }
 
     /** 보드를 모두 비운다. */
