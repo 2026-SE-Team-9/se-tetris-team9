@@ -7,6 +7,8 @@ import seoultech.se.tetris.engine.GameMode;
 import seoultech.se.tetris.ui.ScreenNavigator;
 import seoultech.se.tetris.ui.scoreboard.ScoreboardPanel;
 import seoultech.se.tetris.ui.settings.SettingsPanel;
+import seoultech.se.tetris.ui.versus.VersusModeSelectPanel;
+import seoultech.se.tetris.versus.VersusMode;
 
 /** 시작 메뉴를 담는 창. 단독 실행(main) 시에는 선택 결과를 콘솔에 출력하는 임시 내비게이터를 사용한다. */
 public class StartMenuFrame extends JFrame {
@@ -41,6 +43,15 @@ public class StartMenuFrame extends JFrame {
         setVisible(true);
     }
 
+    /** 같은 창에서 대전 모드 선택 화면으로 전환한다. */
+    public void showVersusModeSelect(VersusModeSelectPanel modeSelect) {
+        setContentPane(modeSelect);
+        pack();
+        setLocationRelativeTo(null);
+        setVisible(true);
+        modeSelect.requestFocusInWindow();
+    }
+
     /** 같은 창에서 스코어보드 화면으로 전환한다. */
     public void showScoreboard(ScoreboardPanel scoreboard) {
         setContentPane(scoreboard);
@@ -55,6 +66,7 @@ public class StartMenuFrame extends JFrame {
             @Override public void navigateToMenu() { System.out.println("메뉴"); }
             @Override public void navigateToGame(GameMode mode) { System.out.println("시작 선택: " + mode); }
             @Override public void navigateToVersus() { System.out.println("대전 모드 선택"); }
+            @Override public void navigateToVersusGame(VersusMode mode) { System.out.println("대전 시작: " + mode); }
             @Override public void navigateToP2P() { System.out.println("P2P 대전 모드 선택"); }
             @Override public void navigateToSettings() { System.out.println("설정 선택"); }
             @Override public void navigateToScoreboard() { System.out.println("스코어보드 선택"); }

@@ -12,6 +12,9 @@ import seoultech.se.tetris.ui.menu.StartMenuFrame;
 import seoultech.se.tetris.ui.scoreboard.ScoreboardModel;
 import seoultech.se.tetris.ui.scoreboard.ScoreboardPanel;
 import seoultech.se.tetris.ui.settings.SettingsPanel;
+import seoultech.se.tetris.ui.versus.VersusModeSelectModel;
+import seoultech.se.tetris.ui.versus.VersusModeSelectPanel;
+import seoultech.se.tetris.versus.VersusMode;
 import seoultech.se.tetris.config.PropertiesAppSettingsService;
 import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
 import seoultech.se.tetris.config.PropertiesKeyConfigService;
@@ -55,15 +58,22 @@ public final class TetrisApplication implements ScreenNavigator {
         game = GameFrame.launch(currentDifficulty, currentMode, this::navigateToGameOver, this::navigateToMenu);
     }
 
-    /**
-     * 로컬 대전 모드 진입.
-     *
-     * <p>대전 모드 선택 화면(일반 / 아이템 / 시간제한)은 후속 이슈에서 연결한다.
-     * 그때까지는 시작 메뉴를 그대로 유지한다.
-     */
+    /** 로컬 대전 모드 진입. 같은 창에서 대전 모드(일반 / 아이템 / 시간제한) 선택 화면으로 전환한다. */
     @Override
     public void navigateToVersus() {
-        // 대전 모드 선택 화면 연결 전까지는 시작 메뉴를 유지한다
+        menu.showVersusModeSelect(new VersusModeSelectPanel(
+                new VersusModeSelectModel(this::navigateToVersusGame, () -> menu.showMenu())));
+    }
+
+    /**
+     * 선택한 대전 모드로 로컬 대전 시작.
+     *
+     * <p>대전 게임 화면(두 보드)은 후속 이슈에서 연결한다. 그때까지는 선택 화면을 그대로 유지한다.
+     */
+    @Override
+    public void navigateToVersusGame(VersusMode mode) {
+        Objects.requireNonNull(mode, "mode");
+        // 대전 게임 화면 연결 전까지는 선택 화면을 유지한다
     }
 
     /**

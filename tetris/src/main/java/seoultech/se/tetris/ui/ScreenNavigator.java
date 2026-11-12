@@ -1,6 +1,7 @@
 package seoultech.se.tetris.ui;
 
 import seoultech.se.tetris.engine.GameMode;
+import seoultech.se.tetris.versus.VersusMode;
 
 public interface ScreenNavigator {
     /** 시작 메뉴 화면으로 이동 */
@@ -11,6 +12,9 @@ public interface ScreenNavigator {
 
     /** 로컬 대전 모드 진입. 대전에서 사용할 모드(일반 / 아이템 / 시간제한) 선택 화면으로 이동한다. */
     void navigateToVersus();
+
+    /** 선택한 대전 모드(일반 / 아이템 / 시간제한)로 로컬 대전을 시작한다. */
+    void navigateToVersusGame(VersusMode mode);
 
     /** P2P 대전 모드 진입. P2P 대전 모드 첫 화면(방 생성 / 참여)으로 이동한다. */
     void navigateToP2P();

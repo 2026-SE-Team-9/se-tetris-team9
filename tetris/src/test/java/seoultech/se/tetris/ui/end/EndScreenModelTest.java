@@ -19,6 +19,7 @@ import seoultech.se.tetris.score.CsvScoreRepository;
 import seoultech.se.tetris.score.ScoreRecord;
 import seoultech.se.tetris.score.ScoreRepository;
 import seoultech.se.tetris.ui.ScreenNavigator;
+import seoultech.se.tetris.versus.VersusMode;
 import seoultech.se.tetris.ui.end.EndScreenModel.Phase;
 
 class EndScreenModelTest {
@@ -314,6 +315,7 @@ class EndScreenModelTest {
             @Override public void navigateToMenu() { calls.add("menu"); }
             @Override public void navigateToGame(GameMode mode) { calls.add("game"); }
             @Override public void navigateToVersus() { calls.add("versus"); }
+            @Override public void navigateToVersusGame(VersusMode mode) { calls.add("versusGame"); }
             @Override public void navigateToP2P() { calls.add("p2p"); }
             @Override public void navigateToSettings() { calls.add("settings"); }
             @Override public void navigateToScoreboard() { calls.add("scoreboard"); }

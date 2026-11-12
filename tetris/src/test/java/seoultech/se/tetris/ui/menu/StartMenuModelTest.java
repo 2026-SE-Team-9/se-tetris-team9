@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import seoultech.se.tetris.engine.GameMode;
 import seoultech.se.tetris.ui.ScreenNavigator;
+import seoultech.se.tetris.versus.VersusMode;
 
 class StartMenuModelTest {
 
@@ -80,6 +81,7 @@ class StartMenuModelTest {
             @Override public void navigateToMenu() { log.add("menu"); }
             @Override public void navigateToGame(GameMode mode) { log.add("game:" + mode); }
             @Override public void navigateToVersus() { log.add("versus"); }
+            @Override public void navigateToVersusGame(VersusMode mode) { log.add("versusGame:" + mode); }
             @Override public void navigateToP2P() { log.add("p2p"); }
             @Override public void navigateToSettings() { log.add("settings"); }
             @Override public void navigateToScoreboard() { log.add("scoreboard"); }
