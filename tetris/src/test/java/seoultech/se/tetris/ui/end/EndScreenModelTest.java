@@ -313,6 +313,7 @@ class EndScreenModelTest {
         return new ScreenNavigator() {
             @Override public void navigateToMenu() { calls.add("menu"); }
             @Override public void navigateToGame(GameMode mode) { calls.add("game"); }
+            @Override public void navigateToVersus() { calls.add("versus"); }
             @Override public void navigateToSettings() { calls.add("settings"); }
             @Override public void navigateToScoreboard() { calls.add("scoreboard"); }
             @Override public void navigateToGameOver(int finalScore) { calls.add("gameOver"); }

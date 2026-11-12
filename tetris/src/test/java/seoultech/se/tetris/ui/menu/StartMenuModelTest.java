@@ -79,6 +79,7 @@ class StartMenuModelTest {
         return new ScreenNavigator() {
             @Override public void navigateToMenu() { log.add("menu"); }
             @Override public void navigateToGame(GameMode mode) { log.add("game:" + mode); }
+            @Override public void navigateToVersus() { log.add("versus"); }
             @Override public void navigateToSettings() { log.add("settings"); }
             @Override public void navigateToScoreboard() { log.add("scoreboard"); }
             @Override public void navigateToGameOver(int finalScore) { log.add("gameOver"); }
@@ -87,11 +88,22 @@ class StartMenuModelTest {
     }
 
     @Test
-    void 기본_메뉴는_시작_아이템_모드_설정_스코어보드_종료_순서다() {
+    void 기본_메뉴는_시작_대전_모드_아이템_모드_설정_스코어보드_종료_순서다() {
         StartMenuModel menu = StartMenuModel.createDefault(navigator(new ArrayList<>()));
 
-        assertEquals(List.of("시작", "아이템 모드", "설정", "스코어보드", "종료"),
+        assertEquals(List.of("시작", "대전 모드", "아이템 모드", "설정", "스코어보드", "종료"),
                 menu.getItems().stream().map(MenuItem::label).toList());
+    }
+
+    @Test
+    void 대전_모드를_선택하면_로컬_대전_모드로_진입한다() {
+        List<String> log = new ArrayList<>();
+        StartMenuModel menu = StartMenuModel.createDefault(navigator(log));
+
+        menu.moveDown();
+        menu.select();
+
+        assertEquals(List.of("versus"), log);
     }
 
     @Test
@@ -110,6 +122,7 @@ class StartMenuModelTest {
         StartMenuModel menu = StartMenuModel.createDefault(navigator(log));
 
         menu.moveDown();
+        menu.moveDown();
         menu.select();
 
         assertEquals(List.of("game:ITEM"), log);
@@ -120,7 +133,7 @@ class StartMenuModelTest {
         List<String> log = new ArrayList<>();
         StartMenuModel menu = StartMenuModel.createDefault(navigator(log));
 
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < 3; i++) {
             menu.moveDown();
         }
         menu.select();
@@ -146,7 +159,8 @@ class StartMenuModelTest {
         List<String> log = new ArrayList<>();
         StartMenuModel menu = StartMenuModel.createDefault(navigator(log));
 
-        for (int i = 0; i < GameMode.values().length; i++) {
+        // 메뉴 항목을 한 바퀴 돌며 모두 선택한다 (테스트용 내비게이터는 기록만 남긴다)
+        for (int i = 0; i < menu.getItems().size(); i++) {
             menu.select();
             menu.moveDown();
         }

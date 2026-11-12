@@ -54,6 +54,7 @@ public class StartMenuFrame extends JFrame {
         SwingUtilities.invokeLater(() -> new StartMenuFrame(new ScreenNavigator() {
             @Override public void navigateToMenu() { System.out.println("메뉴"); }
             @Override public void navigateToGame(GameMode mode) { System.out.println("시작 선택: " + mode); }
+            @Override public void navigateToVersus() { System.out.println("대전 모드 선택"); }
             @Override public void navigateToSettings() { System.out.println("설정 선택"); }
             @Override public void navigateToScoreboard() { System.out.println("스코어보드 선택"); }
             @Override public void navigateToGameOver(int finalScore) { System.out.println("게임 오버: " + finalScore); }

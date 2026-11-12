@@ -9,6 +9,9 @@ public interface ScreenNavigator {
     /** 선택한 모드로 게임 시작 (인게임 화면으로 전환). 게임 종료 후의 점수 기록도 이 모드로 남는다. */
     void navigateToGame(GameMode mode);
 
+    /** 로컬 대전 모드 진입. 대전에서 사용할 모드(일반 / 아이템 / 시간제한) 선택 화면으로 이동한다. */
+    void navigateToVersus();
+
     /** 설정 화면으로 이동 */
     void navigateToSettings();
 
