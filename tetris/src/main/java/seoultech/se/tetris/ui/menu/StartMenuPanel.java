@@ -32,7 +32,8 @@ public class StartMenuPanel extends JPanel {
     public StartMenuPanel(StartMenuModel model) {
         this.model = model;
         setBackground(Color.BLACK);
-        setPreferredSize(new Dimension(480, 480));
+        // 메뉴 7개 항목과 하단 키 안내가 겹치지 않는 높이
+        setPreferredSize(new Dimension(480, 540));
         setFocusable(true);
         addKeyListener(new KeyAdapter() {
             @Override

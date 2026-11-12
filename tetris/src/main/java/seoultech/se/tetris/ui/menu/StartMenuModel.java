@@ -23,13 +23,14 @@ public class StartMenuModel {
     }
 
     /**
-     * 시작 / 대전 모드 / 아이템 모드 / 설정 / 스코어보드 / 종료 항목으로 구성된 기본 메뉴를 만든다.
+     * 시작 / 대전 모드 / P2P 대전 모드 / 아이템 모드 / 설정 / 스코어보드 / 종료 항목으로 구성된 기본 메뉴를 만든다.
      * 시작은 일반 모드이고, 대전 모드는 로컬 대전 모드다.
      */
     public static StartMenuModel createDefault(ScreenNavigator navigator) {
         return new StartMenuModel(List.of(
                 new MenuItem("시작", () -> navigator.navigateToGame(GameMode.NORMAL)),
                 new MenuItem("대전 모드", navigator::navigateToVersus),
+                new MenuItem("P2P 대전 모드", navigator::navigateToP2P),
                 new MenuItem("아이템 모드", () -> navigator.navigateToGame(GameMode.ITEM)),
                 new MenuItem("설정", navigator::navigateToSettings),
                 new MenuItem("스코어보드", navigator::navigateToScoreboard),

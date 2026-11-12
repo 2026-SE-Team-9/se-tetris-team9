@@ -12,6 +12,9 @@ public interface ScreenNavigator {
     /** 로컬 대전 모드 진입. 대전에서 사용할 모드(일반 / 아이템 / 시간제한) 선택 화면으로 이동한다. */
     void navigateToVersus();
 
+    /** P2P 대전 모드 진입. P2P 대전 모드 첫 화면(방 생성 / 참여)으로 이동한다. */
+    void navigateToP2P();
+
     /** 설정 화면으로 이동 */
     void navigateToSettings();
 
