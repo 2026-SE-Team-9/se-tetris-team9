@@ -56,6 +56,28 @@ public final class TetrisApplication implements ScreenNavigator {
     }
 
     /**
+     * 로컬 대전 모드 진입.
+     *
+     * <p>대전 모드 선택 화면(일반 / 아이템 / 시간제한)은 후속 이슈에서 연결한다.
+     * 그때까지는 시작 메뉴를 그대로 유지한다.
+     */
+    @Override
+    public void navigateToVersus() {
+        // 대전 모드 선택 화면 연결 전까지는 시작 메뉴를 유지한다
+    }
+
+    /**
+     * P2P 대전 모드 진입.
+     *
+     * <p>P2P 대전 모드 첫 화면(방 생성 / 참여)은 후속 이슈에서 연결한다.
+     * 그때까지는 시작 메뉴를 그대로 유지한다.
+     */
+    @Override
+    public void navigateToP2P() {
+        // P2P 대전 모드 첫 화면 연결 전까지는 시작 메뉴를 유지한다
+    }
+
+    /**
      * 저장된 난이도. 설정 파일을 읽을 수 없으면 기본 난이도로 시작한다.
      *
      * <p>파일 내용이 손상된 경우는 설정 서비스가 이미 기본값으로 복구하므로,
