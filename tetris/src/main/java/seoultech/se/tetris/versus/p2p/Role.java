@@ -20,9 +20,4 @@ public enum Role {
     public Side side() {
         return this == SERVER ? Side.P1 : Side.P2;
     }
-
-    /** 상대의 역할 */
-    public Role opponent() {
-        return this == SERVER ? CLIENT : SERVER;
-    }
 }
