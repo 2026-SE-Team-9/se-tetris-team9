@@ -196,6 +196,74 @@ class P2PMatchTest {
     }
 
     // ------------------------------------------------------------------
+    // 조작 명령
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("조작 명령")
+    class Controls {
+
+        @Test
+        @DisplayName("시작 전에는 어떤 이동·회전 명령도 엔진에 전달되지 않는다")
+        void nothingBeforeBegin() {
+            Link link = new Link(VersusMode.NORMAL);
+            GameController controller = link.server.controller(Side.P1).orElseThrow();
+            BoardSnapshot before = BoardSnapshot.of(link.server.state(Side.P1));
+
+            controller.moveLeft();
+            controller.moveRight();
+            controller.moveDown();
+            controller.rotate();
+            controller.rotateCounterclockwise();
+            controller.dropToBottom();
+
+            assertEquals(before, BoardSnapshot.of(link.server.state(Side.P1)));
+        }
+
+        @Test
+        @DisplayName("진행 중에는 이동·회전 명령이 모두 엔진에 전달된다")
+        void everyMoveWhilePlaying() {
+            Link link = new Link(VersusMode.NORMAL);   // 시드 3: 첫 블럭은 J
+            link.server.begin();
+            GameController controller = link.server.controller(Side.P1).orElseThrow();
+            var state = link.server.state(Side.P1);
+            controller.moveDown();   // 회전할 공간을 만든다
+            int x = state.getCurrentX();
+            int y = state.getCurrentY();
+
+            controller.moveRight();
+            assertEquals(x + 1, state.getCurrentX());
+
+            controller.moveDown();
+            assertEquals(y + 1, state.getCurrentY());
+
+            controller.rotate();
+            assertEquals(1, state.getCurrentBlock().rotation());
+
+            controller.rotateCounterclockwise();
+            assertEquals(0, state.getCurrentBlock().rotation());
+        }
+
+        @Test
+        @DisplayName("일시정지·재개·재시작 명령은 아무 일도 하지 않는다")
+        void pauseAndRestartDoNothing() {
+            Link link = new Link(VersusMode.NORMAL);
+            link.server.begin();
+            GameController controller = link.server.controller(Side.P1).orElseThrow();
+            controller.dropToBottom();
+            BoardSnapshot before = BoardSnapshot.of(link.server.state(Side.P1));
+
+            controller.pauseGame();
+            controller.resumeGame();
+            controller.togglePause();
+            controller.restartGame();
+
+            assertEquals(before, BoardSnapshot.of(link.server.state(Side.P1)));
+            assertEquals(MatchPhase.PLAYING, link.server.phase());
+        }
+    }
+
+    // ------------------------------------------------------------------
     // 화면 정보와 공격
     // ------------------------------------------------------------------
 
@@ -292,6 +360,72 @@ class P2PMatchTest {
 
         GameEventListener matchListener() {
             return captured.get(0);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 리스너 등록과 해제
+    // ------------------------------------------------------------------
+
+    /** 보드 변화 횟수만 세는 게임 리스너 */
+    private static final class CountingGameListener implements GameEventListener {
+        int boardUpdated;
+
+        @Override public void onBoardUpdated() { boardUpdated++; }
+        @Override public void onLinesCleared(int clearedCount, int gainedScore) { }
+        @Override public void onSpeedIncreased(int currentInterval) { }
+        @Override public void onGameOver(int finalScore) { }
+    }
+
+    @Nested
+    @DisplayName("리스너 등록과 해제")
+    class Listeners {
+
+        @Test
+        @DisplayName("내 자리에 등록한 리스너는 내 엔진의 변화를 받는다")
+        void mySideListener() {
+            Link link = new Link(VersusMode.NORMAL);
+            link.server.begin();
+            CountingGameListener mine = new CountingGameListener();
+            link.server.addGameListener(Side.P1, mine);
+
+            link.server.controller(Side.P1).orElseThrow().moveLeft();
+
+            assertTrue(mine.boardUpdated > 0);
+        }
+
+        @Test
+        @DisplayName("해제한 게임 리스너는 내 자리든 상대 자리든 더 받지 않는다")
+        void removeGameListeners() {
+            Link link = new Link(VersusMode.NORMAL);
+            link.beginBoth();
+            CountingGameListener mine = new CountingGameListener();
+            CountingGameListener theirs = new CountingGameListener();
+            link.server.addGameListener(Side.P1, mine);
+            link.server.addGameListener(Side.P2, theirs);
+            link.server.removeGameListener(Side.P1, mine);
+            link.server.removeGameListener(Side.P2, theirs);
+
+            link.server.controller(Side.P1).orElseThrow().moveLeft();
+            link.client.controller(Side.P2).orElseThrow().moveLeft();
+            link.pump();
+
+            assertEquals(0, mine.boardUpdated);
+            assertEquals(0, theirs.boardUpdated);
+        }
+
+        @Test
+        @DisplayName("해제한 대전 리스너는 결과를 받지 않는다")
+        void removeMatchListener() {
+            Link link = new Link(VersusMode.NORMAL);
+            link.beginBoth();
+            RecordingMatchListener listener = new RecordingMatchListener();
+            link.server.addListener(listener);
+            link.server.removeListener(listener);
+
+            link.server.quit();
+
+            assertTrue(listener.events.isEmpty());
         }
     }
 
@@ -520,6 +654,50 @@ class P2PMatchTest {
 
             assertEquals(EndReason.TOP_OUT, resultOf(link.server).reason());
             assertEquals(Side.P2, resultOf(link.client).winner());
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 엉뚱한 쪽에서 온 메시지
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("엉뚱한 쪽에서 온 메시지")
+    class WrongSender {
+
+        @Test
+        @DisplayName("서버는 시간 종료 신호를 받아도 무시한다 (서버 측 시간 기준)")
+        void serverIgnoresTimeUp() {
+            Link link = new Link(VersusMode.TIME_LIMIT);
+            link.beginBoth();
+
+            link.server.handle(new P2PMessage.TimeUp());
+
+            assertFalse(link.server.state(Side.P1).isGameOver());
+            assertTrue(link.serverConnection.sentExceptSnapshots().isEmpty());
+        }
+
+        @Test
+        @DisplayName("서버는 시간 종료를 처리하기 전에 온 최종 점수를 무시한다")
+        void serverIgnoresEarlyFinalScore() {
+            Link link = new Link(VersusMode.TIME_LIMIT);
+            link.beginBoth();
+
+            link.server.handle(new P2PMessage.FinalScore(100));
+
+            assertTrue(link.server.result().isEmpty());
+        }
+
+        @Test
+        @DisplayName("클라이언트는 최종 점수를 받아도 무시한다")
+        void clientIgnoresFinalScore() {
+            Link link = new Link(VersusMode.TIME_LIMIT);
+            link.beginBoth();
+
+            link.client.handle(new P2PMessage.FinalScore(100));
+
+            assertTrue(link.client.result().isEmpty());
+            assertTrue(link.clientConnection.sentExceptSnapshots().isEmpty());
         }
     }
 

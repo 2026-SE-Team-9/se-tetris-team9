@@ -292,6 +292,30 @@ class PeerSessionTest {
         }
 
         @Test
+        @DisplayName("클라이언트는 대전 중에 설정 메시지가 와도 무시한다")
+        void clientIgnoresSettingsDuringMatch() {
+            startMatch();
+
+            serverConnection.send(new P2PMessage.Settings(VersusMode.TIME_LIMIT, Difficulty.EASY));
+            pump();
+
+            assertEquals(VersusMode.NORMAL, client.mode());
+            assertTrue(client.match().isPresent());
+        }
+
+        @Test
+        @DisplayName("해제한 리스너는 더 알림을 받지 않는다")
+        void removedListener() {
+            client.removeListener(clientEvents);
+
+            pump();
+            server.changeSettings(VersusMode.ITEM, Difficulty.EASY);
+            pump();
+
+            assertTrue(clientEvents.events.isEmpty());
+        }
+
+        @Test
         @DisplayName("대전 중에는 설정을 바꿀 수 없고, 준비 버튼도 무시한다")
         void lockedDuringMatch() {
             startMatch();

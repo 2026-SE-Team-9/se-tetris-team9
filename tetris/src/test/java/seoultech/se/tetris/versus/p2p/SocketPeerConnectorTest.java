@@ -291,6 +291,28 @@ class SocketPeerConnectorTest {
         }
 
         @Test
+        @DisplayName("버전 확인 중에 상대가 끊으면 통신 오류로 실패한다")
+        void peerLeavesDuringHandshake() throws IOException, InterruptedException {
+            int port = fakeServer((in, out, socket) -> { });   // 받자마자 끊는다
+            RecordingConnect joining = new RecordingConnect();
+
+            connector.connect(LOCALHOST, port, joining);
+
+            assertEquals(FailReason.ERROR, joining.awaitFailed());
+        }
+
+        @Test
+        @DisplayName("서버도 접속한 상대가 버전 확인 전에 끊으면 통신 오류로 실패한다")
+        void clientLeavesDuringHandshake() throws IOException, InterruptedException {
+            RecordingConnect hosting = new RecordingConnect();
+            Hosting host = connector.host(0, hosting);
+
+            new Socket(LOCALHOST, host.port()).close();   // 접속하자마자 끊는다
+
+            assertEquals(FailReason.ERROR, hosting.awaitFailed());
+        }
+
+        @Test
         @DisplayName("기다리기를 취소하면 포트를 닫아 더 접속할 수 없고, 더 알리지 않는다")
         void cancelHosting() throws InterruptedException {
             RecordingConnect hosting = new RecordingConnect();
@@ -364,6 +386,20 @@ class SocketPeerConnectorTest {
             for (int i = 0; i < 50; i++) {
                 assertEquals(new P2PMessage.FinalScore(i), pair.serverEvents().next());
             }
+        }
+
+        @Test
+        @DisplayName("해제한 리스너는 더 메시지를 받지 않는다")
+        void removedListener() throws InterruptedException {
+            Pair pair = connectPair();
+            pair.client().removeListener(pair.clientEvents());
+            RecordingPeer replacement = new RecordingPeer();
+            pair.client().addListener(replacement);
+
+            pair.server().send(new P2PMessage.Ready(true));
+
+            assertEquals(new P2PMessage.Ready(true), replacement.next());
+            assertNull(pair.clientEvents().nextOrNull());
         }
 
         @Test

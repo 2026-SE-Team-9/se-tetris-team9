@@ -260,6 +260,21 @@ class MessageCodecTest {
         }
 
         @Test
+        @DisplayName("한도보다 큰 메시지는 보내지 않고 예외를 던진다")
+        void rejectsTooLargeToSend() throws IOException {
+            List<GarbageLine> lines = new ArrayList<>();
+            for (int i = 0; i < 5_000; i++) {
+                lines.add(line("XXX.XXXXXX"));
+            }
+            P2PMessage huge = new P2PMessage.SendAttack(new Attack(lines));
+            assertTrue(MessageCodec.encode(huge).length > MessageCodec.MAX_FRAME_BYTES);
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+
+            assertThrows(InvalidMessageException.class, () -> MessageCodec.write(new DataOutputStream(bytes), huge));
+            assertEquals(0, bytes.size());   // 아무것도 쓰지 않았다
+        }
+
+        @Test
         @DisplayName("더 읽을 것이 없으면 EOFException을 던진다 (상대가 닫음)")
         void endOfStream() {
             DataInputStream in = new DataInputStream(new ByteArrayInputStream(new byte[0]));
@@ -290,6 +305,28 @@ class MessageCodecTest {
             DataInputStream in = new DataInputStream(new ByteArrayInputStream(bytes.toByteArray()));
 
             assertThrows(EOFException.class, () -> MessageCodec.read(in));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 메시지 값 검사
+    // ------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("메시지 값 검사")
+    class Validation {
+
+        @Test
+        @DisplayName("종료 신호는 쌓을 수 없게 됐거나 상대 신호를 받은 경우에만 만들 수 있다")
+        void endNeedsReason() {
+            assertThrows(IllegalArgumentException.class, () -> new P2PMessage.End(false, false, 0));
+        }
+
+        @Test
+        @DisplayName("종료 신호와 최종 점수의 점수는 음수일 수 없다")
+        void scoresNotNegative() {
+            assertThrows(IllegalArgumentException.class, () -> new P2PMessage.End(true, false, -1));
+            assertThrows(IllegalArgumentException.class, () -> new P2PMessage.FinalScore(-1));
         }
     }
 }
