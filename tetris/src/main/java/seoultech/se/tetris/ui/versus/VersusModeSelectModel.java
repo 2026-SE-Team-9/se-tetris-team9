@@ -30,9 +30,9 @@ public class VersusModeSelectModel {
         this.onSelect = Objects.requireNonNull(onSelect, "onSelect");
         this.onBack = Objects.requireNonNull(onBack, "onBack");
         this.options = List.of(
-                new Option(VersusMode.NORMAL, "일반 모드", "2줄 이상 지우면 상대에게 공격"),
-                new Option(VersusMode.ITEM, "아이템 모드", "아이템이 등장하는 일반 대전"),
-                new Option(VersusMode.TIME_LIMIT, "시간제한 모드", timeLimitDescription()),
+                new Option(VersusMode.NORMAL, VersusModeLabels.of(VersusMode.NORMAL), "2줄 이상 지우면 상대에게 공격"),
+                new Option(VersusMode.ITEM, VersusModeLabels.of(VersusMode.ITEM), "아이템이 등장하는 일반 대전"),
+                new Option(VersusMode.TIME_LIMIT, VersusModeLabels.of(VersusMode.TIME_LIMIT), timeLimitDescription()),
                 new Option(null, BACK_LABEL, ""));
     }
 
