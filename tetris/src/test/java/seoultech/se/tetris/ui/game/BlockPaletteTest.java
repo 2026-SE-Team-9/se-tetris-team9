@@ -60,8 +60,37 @@ class BlockPaletteTest {
     void 빈_칸이나_정의되지_않은_번호는_색을_정할_수_없다() {
         assertThrows(IllegalArgumentException.class, () -> BlockPalette.colorOf(CellCode.EMPTY));
         assertThrows(IllegalArgumentException.class, () -> BlockPalette.colorOf(-1));
-        assertThrows(IllegalArgumentException.class,
-                () -> BlockPalette.colorOf(BlockType.values().length + ItemType.values().length + 1));
+        // 블럭·아이템 다음 번호는 공격 칸이므로, 그 다음 번호부터 정의되지 않은 번호다
+        assertThrows(IllegalArgumentException.class, () -> BlockPalette.colorOf(CellCode.GARBAGE + 1));
+    }
+
+    // ------------------------------------------------------------------
+    // 공격 칸 (3차)
+    // ------------------------------------------------------------------
+
+    @Test
+    void 공격_칸은_두_모드_모두_회색이다() {
+        Color normal = BlockPalette.colorOf(CellCode.GARBAGE, false);
+        Color colorBlind = BlockPalette.colorOf(CellCode.GARBAGE, true);
+
+        assertEquals(normal, colorBlind);
+        assertEquals(normal.getRed(), normal.getGreen());
+        assertEquals(normal.getGreen(), normal.getBlue());
+    }
+
+    @Test
+    void 공격_칸은_기본_모드의_블럭_아이템_색과_겹치지_않는다() {
+        Color garbage = BlockPalette.colorOf(CellCode.GARBAGE);
+        for (int code = 1; code < CellCode.GARBAGE; code++) {
+            assertNotEquals(garbage, BlockPalette.colorOf(code), "칸 번호 " + code);
+        }
+    }
+
+    @Test
+    void 공격_칸에는_테두리가_없고_글자색이_정해진다() {
+        assertNull(BlockPalette.borderColorOf(CellCode.GARBAGE, false));
+        assertNull(BlockPalette.borderColorOf(CellCode.GARBAGE, true));
+        assertNotNull(BlockPalette.textColorOf(CellCode.GARBAGE, true));
     }
 
     // ------------------------------------------------------------------
