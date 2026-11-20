@@ -34,6 +34,12 @@ class VersusGamePanelTest {
     }
 
     @Test
+    void 대전_화면의_두_보드는_공격_대기열을_표시한다() {
+        assertTrue(p1.isAttackQueueVisible());
+        assertTrue(p2.isAttackQueueVisible());
+    }
+
+    @Test
     void 두_보드를_나란히_담을_만큼_넓다() {
         Dimension size = panel.getPreferredSize();
         Dimension board = p1.getPreferredSize();

@@ -23,6 +23,7 @@ import seoultech.se.tetris.versus.Side;
  * 로컬 대전 화면. 위쪽에 제목·결과·키 안내를, 아래에 P1(왼쪽)·P2(오른쪽) 보드를 나란히 표시한다.
  *
  * <p>각 보드는 1인 모드와 같은 {@link GamePanel}로 그리므로 블럭·고스트·아이템·줄 삭제 애니메이션이 1인 모드와 같다.
+ * 대전 화면에서는 각 보드의 점수 아래에 공격 대기열을 함께 표시한다.
  */
 public class VersusGamePanel extends JPanel {
 
@@ -40,6 +41,8 @@ public class VersusGamePanel extends JPanel {
         this.model = Objects.requireNonNull(model, "model");
         boards.put(Side.P1, Objects.requireNonNull(p1Board, "p1Board"));
         boards.put(Side.P2, Objects.requireNonNull(p2Board, "p2Board"));
+        // 대전 화면에서는 두 보드 모두 점수 아래에 공격 대기열을 표시한다
+        boards.values().forEach(board -> board.setAttackQueueVisible(true));
         setBackground(Color.BLACK);
         setFocusable(true);
 
