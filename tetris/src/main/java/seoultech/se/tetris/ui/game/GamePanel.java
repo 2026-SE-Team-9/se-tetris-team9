@@ -35,6 +35,7 @@ public class GamePanel extends JPanel {
 
     private final transient GameState state;
     private boolean colorBlind;
+    private String overlayText;
     private double scale;
     private int cell;
     private int margin;
@@ -71,6 +72,20 @@ public class GamePanel extends JPanel {
 
     public boolean isColorBlind() {
         return colorBlind;
+    }
+
+    /**
+     * 보드 위에 덮어 표시할 문구를 정한다. {@code null}이면 게임 상태에 따른 기본 문구("GAME OVER", "일시정지")를 쓴다.
+     *
+     * <p>대전 모드처럼 게임이 끝난 뒤 승패를 따로 보여줘야 하는 화면에서 사용한다.
+     */
+    public void setOverlayText(String overlayText) {
+        this.overlayText = overlayText;
+        repaint();
+    }
+
+    public String getOverlayText() {
+        return overlayText;
     }
 
     /**
@@ -112,7 +127,9 @@ public class GamePanel extends JPanel {
 
         drawBoard(g2);
         drawSidePanel(g2);
-        if (state.isGameOver()) {
+        if (overlayText != null) {
+            drawOverlay(g2, overlayText);
+        } else if (state.isGameOver()) {
             drawOverlay(g2, "GAME OVER");
         } else if (state.isPaused()) {
             drawOverlay(g2, "일시정지");

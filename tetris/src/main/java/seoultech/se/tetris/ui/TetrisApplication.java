@@ -2,6 +2,7 @@ package seoultech.se.tetris.ui;
 
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import java.util.Random;
 
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
@@ -13,8 +14,12 @@ import seoultech.se.tetris.ui.scoreboard.ScoreboardModel;
 import seoultech.se.tetris.ui.scoreboard.ScoreboardPanel;
 import seoultech.se.tetris.ui.settings.SettingsPanel;
 import seoultech.se.tetris.ui.versus.VersusModeSelectModel;
+import seoultech.se.tetris.ui.versus.VersusGameFrame;
 import seoultech.se.tetris.ui.versus.VersusModeSelectPanel;
+import seoultech.se.tetris.versus.LocalMatch;
+import seoultech.se.tetris.versus.VersusMatch;
 import seoultech.se.tetris.versus.VersusMode;
+import seoultech.se.tetris.config.AppSettings;
 import seoultech.se.tetris.config.PropertiesAppSettingsService;
 import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
 import seoultech.se.tetris.config.PropertiesKeyConfigService;
@@ -27,6 +32,7 @@ public final class TetrisApplication implements ScreenNavigator {
 
     private StartMenuFrame menu;
     private GameFrame game;
+    private VersusGameFrame versusGame;
     private EndScreenFrame endScreen;
     private Difficulty currentDifficulty = Difficulty.DEFAULT;
     private GameMode currentMode = GameMode.NORMAL;
@@ -41,6 +47,7 @@ public final class TetrisApplication implements ScreenNavigator {
     @Override
     public void navigateToMenu() {
         closeGame();
+        closeVersusGame();
         closeEndScreen();
         closeMenu();
         menu = new StartMenuFrame(this);
@@ -68,12 +75,23 @@ public final class TetrisApplication implements ScreenNavigator {
     /**
      * 선택한 대전 모드로 로컬 대전 시작.
      *
-     * <p>대전 게임 화면(두 보드)은 후속 이슈에서 연결한다. 그때까지는 선택 화면을 그대로 유지한다.
+     * <p>설정의 난이도·화면 크기·색맹 모드를 두 플레이어에게 똑같이 적용한다. (3차 팀 결정: 로컬 대전 난이도는 설정의 난이도)
+     * 두 플레이어는 같은 seed로 블럭 순서가 같다.
      */
     @Override
     public void navigateToVersusGame(VersusMode mode) {
         Objects.requireNonNull(mode, "mode");
-        // 대전 게임 화면 연결 전까지는 선택 화면을 유지한다
+        // 창을 닫기 전에 읽어야, 읽기에 실패해도 화면이 모두 닫힌 채로 남지 않는다.
+        AppSettings settings = savedSettings(new PropertiesAppSettingsService());
+        PropertiesBattleKeyConfigService battleKeys = new PropertiesBattleKeyConfigService();
+        loadOrDefault(battleKeys::load);
+        VersusMatch match = LocalMatch.create(mode, settings.difficulty(), new Random().nextLong());
+        closeMenu();
+        closeEndScreen();
+        closeGame();
+        closeVersusGame();
+        versusGame = VersusGameFrame.launch(match, settings.screenSize().scale(), settings.colorBlind(),
+                battleKeys, this::navigateToMenu);
     }
 
     /**
@@ -94,12 +112,23 @@ public final class TetrisApplication implements ScreenNavigator {
      * 여기서는 파일 자체를 읽지 못한 경우(입출력 오류)만 처리한다.
      */
     static Difficulty savedDifficulty(PropertiesAppSettingsService settings) {
+        return savedSettings(settings).difficulty();
+    }
+
+    /** 저장된 설정 전체. 설정 파일을 읽을 수 없으면 기본 설정이다. ({@link #savedDifficulty} 참고) */
+    static AppSettings savedSettings(PropertiesAppSettingsService settings) {
+        // 읽지 못하면 current()는 기본값(AppSettings.DEFAULT) 그대로다
+        loadOrDefault(settings::load);
+        return settings.current();
+    }
+
+    /** 설정 파일을 읽는다. 파일 자체를 읽지 못하면(입출력 오류) 서비스의 기본값을 그대로 쓴다. */
+    private static void loadOrDefault(Runnable load) {
         try {
-            settings.load();
+            load.run();
         } catch (UncheckedIOException e) {
-            // 읽지 못하면 current()는 기본값(AppSettings.DEFAULT) 그대로다
+            // 기본값 유지
         }
-        return settings.current().difficulty();
     }
 
     @Override
@@ -145,6 +174,11 @@ public final class TetrisApplication implements ScreenNavigator {
     private void closeGame() {
         close(game);
         game = null;
+    }
+
+    private void closeVersusGame() {
+        close(versusGame);
+        versusGame = null;
     }
 
     private void closeEndScreen() {
