@@ -21,6 +21,8 @@ import seoultech.se.tetris.blocks.ItemType;
  * </ul>
  * 색맹 모드의 아이템 칸에는 안쪽 테두리를 그려 블럭 칸과 구분한다.
  *
+ * <p>대전의 공격 칸은 두 모드 모두 회색({@link #GARBAGE})이다.
+ *
  * <p>칸 안의 글자는 두 모드 모두 바탕색에 따라 검정과 흰색 중 대비가 큰 쪽을 쓴다.
  */
 public final class BlockPalette {
@@ -29,6 +31,14 @@ public final class BlockPalette {
     private static final Map<ItemType, Color> ITEMS = new EnumMap<>(ItemType.class);
     private static final Map<BlockType, Color> COLOR_BLIND = new EnumMap<>(BlockType.class);
     private static final Map<ItemType, Color> COLOR_BLIND_ITEMS = new EnumMap<>(ItemType.class);
+
+    /**
+     * 대전에서 상대에게 받은 공격 칸의 색. 직접 쌓은 블럭과 구분하도록 회색으로 하고, 문자 X로도 구분한다. (3차 팀 결정)
+     *
+     * <p>두 모드 모두 같은 색이다. 색맹 모드에서는 Tall Boy·무게추·Crusher도 회색 계열이라 색이 겹치지만,
+     * 아이템 칸은 안쪽 테두리와 문자로 구분된다. (3차 팀 결정)
+     */
+    static final Color GARBAGE = new Color(0x80, 0x80, 0x80);
 
     static {
         STANDARD.put(BlockType.I, new Color(0x00, 0xF0, 0xF0));
@@ -89,6 +99,9 @@ public final class BlockPalette {
      * @throws IllegalArgumentException 빈 칸이거나 정의되지 않은 번호인 경우
      */
     public static Color colorOf(int code, boolean colorBlind) {
+        if (CellCode.isGarbage(code)) {
+            return GARBAGE;
+        }
         BlockType type = CellCode.blockTypeOf(code);
         if (type != null) {
             return (colorBlind ? COLOR_BLIND : STANDARD).get(type);

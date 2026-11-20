@@ -7,6 +7,7 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.util.List;
 
 import javax.swing.JPanel;
 
@@ -14,6 +15,7 @@ import seoultech.se.tetris.blocks.Block;
 import seoultech.se.tetris.blocks.BlockType;
 import seoultech.se.tetris.blocks.CellCode;
 import seoultech.se.tetris.component.model.GameState;
+import seoultech.se.tetris.component.model.GarbageLine;
 import seoultech.se.tetris.engine.Board;
 
 /** 보드(20x10), 다음 블럭, 점수·레벨·줄 수를 그리는 인게임 화면. {@link GameState}를 읽기만 한다. */
@@ -26,6 +28,16 @@ public class GamePanel extends JPanel {
     private static final int BASE_MARGIN = 24;
     private static final int BASE_SIDE_W = 150;
     private static final int BASE_MINI_CELL = 22;
+
+    /**
+     * 공격 대기열에 표시하는 최대 줄 수. 대전에서 한 번에 대기할 수 있는 공격 줄은 최대 10줄이다. (3차 요구사항)
+     */
+    static final int ATTACK_QUEUE_ROWS = 10;
+    /** 배율 1.0일 때 공격 대기열 칸 크기와 위치(px). 10칸 폭이 옆 패널 폭(150)과 같고, LINES 아래 빈 공간에 들어간다. */
+    private static final int BASE_QUEUE_CELL = 15;
+    private static final int BASE_QUEUE_TOP = 386;
+    /** 대기열이 가득 찼을 때 줄 수 표시 색. 더 받은 공격은 무시된다는 것을 알린다. */
+    private static final Color ATTACK_FULL_TEXT = new Color(255, 110, 110);
     private static final Color GRID = new Color(40, 40, 40);
     private static final Color GHOST_FILL = new Color(180, 180, 180, 90);
     private static final Color GHOST_TEXT = new Color(200, 200, 200);
@@ -35,6 +47,8 @@ public class GamePanel extends JPanel {
 
     private final transient GameState state;
     private boolean colorBlind;
+    private String overlayText;
+    private boolean attackQueueVisible;
     private double scale;
     private int cell;
     private int margin;
@@ -71,6 +85,34 @@ public class GamePanel extends JPanel {
 
     public boolean isColorBlind() {
         return colorBlind;
+    }
+
+    /**
+     * 보드 위에 덮어 표시할 문구를 정한다. {@code null}이면 게임 상태에 따른 기본 문구("GAME OVER", "일시정지")를 쓴다.
+     *
+     * <p>대전 모드처럼 게임이 끝난 뒤 승패를 따로 보여줘야 하는 화면에서 사용한다.
+     */
+    public void setOverlayText(String overlayText) {
+        this.overlayText = overlayText;
+        repaint();
+    }
+
+    public String getOverlayText() {
+        return overlayText;
+    }
+
+    /**
+     * 옆 패널의 점수 아래에 공격 대기열을 표시할지 정한다. 대전 화면에서만 켜며, 1인 모드는 기본값(표시 안 함)이다.
+     *
+     * <p>대기 줄은 {@link GameState#getPendingGarbage()}에서 읽으므로, 로컬 대전과 P2P 대전의 상대 보드 모두에 쓸 수 있다.
+     */
+    public void setAttackQueueVisible(boolean attackQueueVisible) {
+        this.attackQueueVisible = attackQueueVisible;
+        repaint();
+    }
+
+    public boolean isAttackQueueVisible() {
+        return attackQueueVisible;
     }
 
     /**
@@ -112,7 +154,9 @@ public class GamePanel extends JPanel {
 
         drawBoard(g2);
         drawSidePanel(g2);
-        if (state.isGameOver()) {
+        if (overlayText != null) {
+            drawOverlay(g2, overlayText);
+        } else if (state.isGameOver()) {
             drawOverlay(g2, "GAME OVER");
         } else if (state.isPaused()) {
             drawOverlay(g2, "일시정지");
@@ -212,6 +256,61 @@ public class GamePanel extends JPanel {
         y = drawStat(g2, "SCORE", String.valueOf(state.getScore()), y);
         y = drawStat(g2, "LEVEL", String.valueOf(state.getLevel()), y);
         drawStat(g2, "LINES", String.valueOf(state.getLinesCleared()), y);
+
+        if (attackQueueVisible) {
+            drawAttackQueue(g2);
+        }
+    }
+
+    /**
+     * 공격 대기열. 대기 중인 공격 줄을 넘어온 형태 그대로 위에서부터 순서대로 그린다.
+     *
+     * <p>대기 줄은 보드에 추가될 때 이 순서 그대로 보드 아래쪽에 붙는다. (3차 팀 결정)
+     */
+    private void drawAttackQueue(Graphics2D g2) {
+        List<GarbageLine> pending = state.getPendingGarbage();
+        int top = attackQueueTop();
+        int queueCell = attackQueueCell();
+
+        g2.setFont(font(Font.DIALOG, Font.BOLD, 14));
+        g2.setColor(Color.GRAY);
+        g2.drawString("ATTACK", sideX, top - scaled(8));
+        String count = pending.size() + " / " + ATTACK_QUEUE_ROWS;
+        g2.setColor(pending.size() >= ATTACK_QUEUE_ROWS ? ATTACK_FULL_TEXT : Color.WHITE);
+        FontMetrics fm = g2.getFontMetrics();
+        g2.drawString(count, sideX + Board.WIDTH * queueCell - fm.stringWidth(count), top - scaled(8));
+
+        g2.setColor(GRID);
+        for (int r = 0; r <= ATTACK_QUEUE_ROWS; r++) {
+            g2.drawLine(sideX, top + r * queueCell, sideX + Board.WIDTH * queueCell, top + r * queueCell);
+        }
+        for (int c = 0; c <= Board.WIDTH; c++) {
+            g2.drawLine(sideX + c * queueCell, top, sideX + c * queueCell, top + ATTACK_QUEUE_ROWS * queueCell);
+        }
+
+        for (int r = 0; r < Math.min(pending.size(), ATTACK_QUEUE_ROWS); r++) {
+            GarbageLine line = pending.get(r);
+            for (int c = 0; c < Math.min(line.width(), Board.WIDTH); c++) {
+                if (line.isFilled(c)) {
+                    drawCell(g2, sideX + c * queueCell, top + r * queueCell, CellCode.GARBAGE, queueCell);
+                }
+            }
+        }
+    }
+
+    /** 공격 대기열 칸 하나의 크기(px) */
+    int attackQueueCell() {
+        return scaled(BASE_QUEUE_CELL);
+    }
+
+    /** 공격 대기열 영역의 위쪽 y 좌표(px) */
+    int attackQueueTop() {
+        return margin + scaled(BASE_QUEUE_TOP);
+    }
+
+    /** 공격 대기열 영역의 왼쪽 x 좌표(px) */
+    int attackQueueLeft() {
+        return sideX;
     }
 
     private int drawStat(Graphics2D g2, String label, String value, int y) {
