@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static seoultech.se.tetris.component.model.GarbageLineFixtures.line;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -967,6 +968,138 @@ class TetrisEngineTest {
             assertEquals(1, target.getLinesCleared());
             assertEquals(16 + 100, target.getScore());
             assertEquals(ItemType.CRUSHER.code(), target.getBoard()[19][3]);   // 남은 Crusher 두 줄이 내려온다
+        }
+
+        @Test
+        @DisplayName("Tall Boy: 폭발 뒤 내려온 블럭이 줄을 채우면 일반 줄 삭제로 이어진다")
+        void tallBoyDroppedBlocksClearFilledLine() {
+            int[][] grid = new int[Board.HEIGHT][Board.WIDTH];
+            setRow(grid, 13, "..XXXXX...");          // 폭발 범위 위쪽의 블럭. 2~6열마다 한 칸씩 내려온다
+            for (int r = 15; r <= 17; r++) {
+                setRow(grid, r, "....X.....");      // Tall Boy를 받치는 칸 (폭발 범위 안)
+            }
+            setRow(grid, 18, "XX.....XXX");          // 2~6열이 비어 있는 줄
+            setRow(grid, 19, "XXXXXXXXX.");          // 내려온 블럭이 멈출 바닥 줄 (꽉 차지 않음)
+            TetrisEngine target = engineWith(grid);
+            target.replaceCurrentBlock(Block.of(ItemType.TALL_BOY, 14, 3));   // 13행 아래 14행 4열에 끼워 넣는다
+
+            target.moveDown();                       // 고정 → 16행으로 파고들어 14~18행 × 2~6열 폭발
+            target.finishClearing();                 // 13행의 칸이 18행으로 내려와 18행이 꽉 찬다
+            assertTrue(target.isClearing());
+            assertEquals(0, target.getLinesCleared());
+            assertEquals(30, target.getScore());     // 받침 15·17행 2칸 + 자기 칸 (파고든 16행은 자기 칸으로 한 번만)
+
+            target.finishClearing();
+
+            assertEquals(1, target.getLinesCleared());
+            assertEquals(List.of(List.of(1, 100)), clearEvents());
+            assertEquals(30 + 100, target.getScore());
+        }
+
+        // --------------------------------------------------------------
+        // 아이템 효과와 백투백, 아이템 블럭의 게임 종료
+        // --------------------------------------------------------------
+
+        /**
+         * 네 줄 삭제 → 아이템 효과 → 네 줄 삭제 순서로 진행해 두 번째 네 줄 삭제가 백투백인지 확인할 보드.
+         *
+         * <p>16~19행은 첫 번째 네 줄 삭제용이고, 15행의 0~3열은 첫 삭제 뒤 19행으로 내려와 아이템이 지울 대상이 된다.
+         */
+        private int[][] backToBackAroundItemReady() {
+            int[][] grid = new int[Board.HEIGHT][Board.WIDTH];
+            fillRows(grid, 16, 19, VERTICAL_I_COL);
+            setRow(grid, 15, "XXXX......");
+            return grid;
+        }
+
+        /**
+         * 네 줄 삭제 뒤 아이템 효과를 내고, 두 번째 네 줄 삭제를 준비해 실행한다.
+         *
+         * <p>아이템 효과는 보드를 크게 바꾸므로, 두 번째 네 줄 삭제에 쓸 줄은 공격 줄 추가 기능으로 보드 아래에 넣는다.
+         * 보드를 다시 채우는 용도로만 쓰며, 공격과는 관계없다.
+         */
+        private void tetrisItemTetris(TetrisEngine target, Board board, Block itemBlock) {
+            dropVerticalI(target);                                  // 첫 번째 네 줄 삭제
+            target.replaceCurrentBlock(itemBlock);
+            dropAndClear(target);                                   // 아이템 효과 (줄 삭제 없음)
+            assertEquals(4, target.getLinesCleared(), "아이템 효과로 줄이 지워지면 안 된다");
+            board.addGarbageLines(List.of(line("XXXXX.XXXX"), line("XXXXX.XXXX"),
+                    line("XXXXX.XXXX"), line("XXXXX.XXXX")));
+            dropVerticalI(target);                                  // 두 번째 네 줄 삭제
+        }
+
+        @Test
+        @DisplayName("무게추 효과는 줄 삭제가 아니므로 백투백을 끊지 않는다")
+        void weightKeepsBackToBack() {
+            Board board = new Board(backToBackAroundItemReady());
+            TetrisEngine target = new TetrisEngine(always(BlockType.I), board);
+            events = new RecordingListener();
+            target.addListener(events);
+
+            tetrisItemTetris(target, board, Block.of(ItemType.WEIGHT, 0, 0));   // 0~3열, 19행 4칸을 지운다
+
+            assertEquals(List.of(List.of(4, 1000), List.of(4, 2000)), clearEvents());
+        }
+
+        @Test
+        @DisplayName("Tall Boy 효과는 줄 삭제가 아니므로 백투백을 끊지 않는다")
+        void tallBoyKeepsBackToBack() {
+            Board board = new Board(backToBackAroundItemReady());
+            TetrisEngine target = new TetrisEngine(always(BlockType.I), board);
+            events = new RecordingListener();
+            target.addListener(events);
+
+            tetrisItemTetris(target, board, Block.of(ItemType.TALL_BOY, 0, 0));   // 1열, 19행 0~3열을 지운다
+
+            assertEquals(List.of(List.of(4, 1000), List.of(4, 2000)), clearEvents());
+        }
+
+        @Test
+        @DisplayName("Crusher 효과는 줄 삭제가 아니므로 백투백을 끊지 않는다")
+        void crusherKeepsBackToBack() {
+            Board board = new Board(backToBackAroundItemReady());
+            TetrisEngine target = new TetrisEngine(always(BlockType.I), board);
+            events = new RecordingListener();
+            target.addListener(events);
+
+            tetrisItemTetris(target, board, Block.of(ItemType.CRUSHER, 0, 0));   // 0~2열, 19행을 짓누른다
+
+            assertEquals(List.of(List.of(4, 1000), List.of(4, 2000)), clearEvents());
+        }
+
+        @Test
+        @DisplayName("Double or Nothing의 2배는 백투백까지 적용한 최종 점수에 곱한다")
+        void doubleOrNothingAppliesAfterBackToBack() {
+            int[][] grid = new int[Board.HEIGHT][Board.WIDTH];
+            fillRows(grid, 12, 19, VERTICAL_I_COL);
+            grid[12][0] = ItemType.DOUBLE_OR_NOTHING.code();   // 두 번째 네 줄 삭제에 D가 있다
+            TetrisEngine target = engineWith(grid);
+
+            dropVerticalI(target);
+            dropVerticalI(target);
+
+            // 1000 × 백투백 2 × D 2
+            assertEquals(List.of(List.of(4, 1000), List.of(4, 4000)), clearEvents());
+        }
+
+        @Test
+        @DisplayName("아이템 블럭이 생성 위치에 놓일 수 없으면 게임을 종료한다")
+        void itemBlockThatCannotSpawnEndsGame() {
+            Board board = new Board(twelveLinesReady());
+            TetrisEngine target = new TetrisEngine(always(BlockType.I), alwaysItem(ItemType.CRUSHER),
+                    GameMode.ITEM, board);
+            events = new RecordingListener();
+            target.addListener(events);
+            dropVerticalI(target);
+            dropVerticalI(target);
+            dropVerticalI(target);                   // 12줄 → 다음 블럭이 Crusher가 된다
+            assertSame(ItemType.CRUSHER, target.getNextBlock().item());
+            board.place(Block.of(BlockType.O, 2, 3)); // 지금 블럭(가로 I)의 바로 아래를 막는다
+
+            target.dropToBottom();                   // 가로 I가 1행에 그대로 고정되어 Crusher 자리를 막는다
+
+            assertTrue(target.isGameOver());
+            assertEquals(1, events.gameOver);
         }
 
         // --------------------------------------------------------------
