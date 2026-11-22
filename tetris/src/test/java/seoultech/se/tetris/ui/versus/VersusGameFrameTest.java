@@ -83,9 +83,9 @@ class VersusGameFrameTest {
         }
     }
 
-    /** 일시정지 메뉴에서 설정을 열면 키 설정이 제외되고, 저장 후 닫으면 일시정지 메뉴로 복귀한다. */
+    /** 일시정지 메뉴에서 설정을 열면 로컬 대전 키 설정도 편집할 수 있고, 저장 후 닫으면 일시정지 메뉴로 복귀한다. */
     @Test
-    void settingsFromPauseHidesKeyEditingAndReturnsToPauseMenu() throws Exception {
+    void settingsFromPauseAllowsKeyEditingAndReturnsToPauseMenu() throws Exception {
         VersusGameSession[] holder = new VersusGameSession[1];
         LocalMatch match = LocalMatch.create(VersusMode.NORMAL, Difficulty.DEFAULT, 2L);
         try {
@@ -107,13 +107,11 @@ class VersusGameFrameTest {
                 assertInstanceOf(SettingsPanel.class, rootPane.getContentPane());
                 SettingsPanel settingsPanel = (SettingsPanel) rootPane.getContentPane();
                 assertFalse(rootPane.getGlassPane().isVisible());
-                assertFalse(hasLabel(settingsPanel, "1인 조작 키"));
-                assertFalse(hasLabel(settingsPanel, "대전 조작 키 (2인)"));
+                assertTrue(hasLabel(settingsPanel, "로컬 대전 조작 키 (2인)"));
 
-                // 로컬 대전 탭에서 색맹 모드 변경 후 저장 → 대전 화면 + 일시정지 메뉴로 복귀
-                JButton battleTab = findButton(settingsPanel, "로컬 대전");
-                battleTab.doClick();
+                // 로컬 대전 탭이 기본 선택되어 있으므로 바로 색맹 모드 변경 후 저장 → 대전 화면 + 일시정지 메뉴로 복귀
                 JCheckBox battleColorBlind = findComponent(settingsPanel, JCheckBox.class, 1);
+                assertTrue(battleColorBlind.isShowing() || battleColorBlind.getParent().isVisible());
                 battleColorBlind.setSelected(true);
                 JButton saveButton = findButton(settingsPanel, "저장");
                 saveButton.doClick();

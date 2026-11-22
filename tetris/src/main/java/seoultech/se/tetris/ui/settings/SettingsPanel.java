@@ -80,7 +80,7 @@ public final class SettingsPanel extends JPanel {
         IN_GAME(false, true, false),
         /** 로컬 대전 게임 중 일시정지 메뉴에서 연 설정 */
         /** 로컬 대전 게임 중 일시정지 메뉴에서 연 설정 */
-        LOCAL_BATTLE_IN_GAME(false, false, false);
+        LOCAL_BATTLE_IN_GAME(false, true, false);
 
         private final boolean fullAccess;
         private final boolean allowsKeyEditing;
@@ -205,7 +205,7 @@ public final class SettingsPanel extends JPanel {
 
         buildContent();
         loadCurrentValues();
-        selectTab(Tab.SINGLE);
+        selectTab(context == Context.LOCAL_BATTLE_IN_GAME ? Tab.LOCAL_BATTLE : Tab.SINGLE);
     }
 
     @Override
@@ -214,7 +214,7 @@ public final class SettingsPanel extends JPanel {
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(keyboardDispatcher);
         SwingUtilities.invokeLater(() -> {
             if (isShowing()) {
-                singleModeTab.requestFocusInWindow();
+                tabButton(currentTab).requestFocusInWindow();
             }
         });
     }

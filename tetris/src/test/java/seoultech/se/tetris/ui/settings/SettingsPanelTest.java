@@ -177,9 +177,9 @@ class SettingsPanelTest {
         });
     }
 
-    /** 로컬 대전 게임 중 일시정지 설정에서는 키 설정 편집 항목이 노출되지 않는다. */
+    /** 로컬 대전 게임 중 일시정지에서도 대전 키 조작 및 변경이 활성화된다. */
     @Test
-    void localBattleInGameSettingsHideKeyEditing() throws Exception {
+    void localBattleInGameSettingsAllowsBattleKeyEditing() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             Path file = tempDir.resolve("local-battle-ingame.properties");
             boolean[] closed = {false};
@@ -190,17 +190,14 @@ class SettingsPanelTest {
                     SettingsPanel.Context.LOCAL_BATTLE_IN_GAME,
                     () -> {}, () -> {}, () -> closed[0] = true);
 
-            assertFalse(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsKeyEditing());
+            assertTrue(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsKeyEditing());
             assertFalse(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsDifficulty());
             assertFalse(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsScoreReset());
+            assertEquals(SettingsPanel.Tab.LOCAL_BATTLE, panel.currentTab());
 
-            assertEquals(0, count(panel, KeyBindingsPanel.class));
-            assertEquals(0, count(panel, BattleKeyBindingsPanel.class));
-
-            // 로컬 대전 탭으로 전환
-            JButton battleTab = (JButton) findButton(panel, "로컬 대전");
-            battleTab.doClick();
-            assertEquals(0, count(panel, BattleKeyBindingsPanel.class));
+            // 대전 키 버튼은 처음부터 활성화·표시되어 있어야 함
+            JButton p1MoveLeft = (JButton) findButton(panel, "A");
+            assertTrue(p1MoveLeft.isEnabled());
 
             JButton save = (JButton) findButton(panel, "저장");
             save.doClick();

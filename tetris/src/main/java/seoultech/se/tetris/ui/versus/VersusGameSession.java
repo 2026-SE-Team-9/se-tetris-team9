@@ -61,6 +61,7 @@ final class VersusGameSession {
     private final Timer resultTimer;
     private final TimeLimitWatcher timeLimit;
     private final Timer clockTimer;
+    private final VersusKeyInput keyInput;
     private final boolean[] effectsWereActive = new boolean[Side.values().length];
     private MatchResult finishedResult;
     private boolean confirmingQuit;
@@ -121,8 +122,9 @@ final class VersusGameSession {
         });
 
         rootPane.setGlassPane(new PauseMenuPanel(this::resumeFromPause, this::showSettings, this::confirmReturnToMenu));
-        panel.addKeyListener(new VersusKeyInput(new VersusKeyMap(keyConfig), match::controller, model,
-                this::pauseAndShowMenu, this::showResult));
+        this.keyInput = new VersusKeyInput(new VersusKeyMap(keyConfig), match::controller, model,
+                this::pauseAndShowMenu, this::showResult);
+        panel.addKeyListener(keyInput);
     }
 
     void start() {
@@ -203,7 +205,8 @@ final class VersusGameSession {
         loadOrKeep(battleKeys::load);
 
         SettingsPanel settingsPanel = new SettingsPanel(settings, keyConfig, battleKeys, new CsvScoreRepository(),
-                SettingsPanel.Context.LOCAL_BATTLE_IN_GAME, () -> {}, () -> {}, () -> {
+                SettingsPanel.Context.LOCAL_BATTLE_IN_GAME, () -> {}, () -> keyInput.applyKeyBindings(battleKeys),
+                () -> {
                     double updatedScale = settings.current().battleScreenSize().scale();
                     boolean updatedColorBlind = settings.current().battleColorBlind();
                     for (Side side : Side.values()) {

@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.function.Function;
 
 import seoultech.se.tetris.component.controller.GameController;
+import seoultech.se.tetris.config.BattleKeyConfigService;
 import seoultech.se.tetris.versus.Side;
 
 /**
@@ -19,7 +20,7 @@ import seoultech.se.tetris.versus.Side;
  */
 public final class VersusKeyInput extends KeyAdapter {
 
-    private final VersusKeyMap keyMap;
+    private volatile VersusKeyMap keyMap;
     private final Function<Side, Optional<GameController>> controllers;
     private final VersusScreenModel model;
     private final Runnable requestQuit;
@@ -37,6 +38,11 @@ public final class VersusKeyInput extends KeyAdapter {
         this.model = Objects.requireNonNull(model, "model");
         this.requestQuit = Objects.requireNonNull(requestQuit, "requestQuit");
         this.showResult = Objects.requireNonNull(showResult, "showResult");
+    }
+
+    /** 설정에서 변경한 2인 키 설정을 즉시 반영한다. */
+    void applyKeyBindings(BattleKeyConfigService keyConfig) {
+        this.keyMap = new VersusKeyMap(Objects.requireNonNull(keyConfig, "keyConfig"));
     }
 
     @Override
