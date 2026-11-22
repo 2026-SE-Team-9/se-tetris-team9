@@ -38,6 +38,13 @@ public class GamePanel extends JPanel {
     private static final int BASE_QUEUE_TOP = 386;
     /** 대기열이 가득 찼을 때 줄 수 표시 색. 더 받은 공격은 무시된다는 것을 알린다. */
     private static final Color ATTACK_FULL_TEXT = new Color(255, 110, 110);
+
+    /** 공격을 보냈을 때 보드 위에 떠오르는 문구의 색 */
+    static final Color ATTACK_POPUP_COLOR = new Color(255, 170, 60);
+    /** 공격 대기열에 새로 붙은 줄이 깜빡일 때의 칸 색 */
+    static final Color QUEUE_HIGHLIGHT_COLOR = new Color(255, 120, 120);
+    /** 문구가 떠오르는 높이(px, 배율 1.0 기준) */
+    private static final int BASE_POPUP_RISE = 60;
     private static final Color GRID = new Color(40, 40, 40);
     private static final Color GHOST_FILL = new Color(180, 180, 180, 90);
     private static final Color GHOST_TEXT = new Color(200, 200, 200);
@@ -49,6 +56,7 @@ public class GamePanel extends JPanel {
     private boolean colorBlind;
     private String overlayText;
     private boolean attackQueueVisible;
+    private transient BoardEffects effects = BoardEffects.NONE;
     private double scale;
     private int cell;
     private int margin;
@@ -116,6 +124,20 @@ public class GamePanel extends JPanel {
     }
 
     /**
+     * 보드 위에 덧그릴 효과(줄 공격 애니메이션 등)를 정한다. {@code null}이면 효과를 그리지 않는다.
+     *
+     * <p>효과는 시간에 따라 바뀌므로, 효과가 진행 중인 동안 주기적으로 {@link #repaint()}를 호출해야 한다.
+     */
+    public void setEffects(BoardEffects effects) {
+        this.effects = effects == null ? BoardEffects.NONE : effects;
+        repaint();
+    }
+
+    public BoardEffects getEffects() {
+        return effects;
+    }
+
+    /**
      * 화면 배율을 바꾼다. 선호 크기가 바뀌므로 창에 담긴 뒤에는 창의 {@code pack()}을 다시 호출해야 한다.
      */
     public final void setScale(double scale) {
@@ -154,6 +176,7 @@ public class GamePanel extends JPanel {
 
         drawBoard(g2);
         drawSidePanel(g2);
+        drawPopup(g2);
         if (overlayText != null) {
             drawOverlay(g2, overlayText);
         } else if (state.isGameOver()) {
@@ -208,8 +231,44 @@ public class GamePanel extends JPanel {
                 }
             }
         }
+        drawInsertedRowsHighlight(g2);
         g2.setColor(Color.WHITE);
         g2.drawRect(margin - 1, margin - 1, boardW + 1, boardH + 1);
+    }
+
+    /** 보드에 막 추가된 공격 줄(맨 아래 줄들)을 흰색으로 덮어 빛나게 한다. 시간이 지날수록 옅어진다. */
+    private void drawInsertedRowsHighlight(Graphics2D g2) {
+        int rows = Math.min(effects.highlightedBottomRows(), Board.VISIBLE_HEIGHT);
+        double strength = Math.min(1.0, Math.max(0.0, effects.bottomRowsHighlightStrength()));
+        if (rows <= 0 || strength <= 0) {
+            return;
+        }
+        g2.setColor(new Color(255, 255, 255, (int) Math.round(180 * strength)));
+        g2.fillRect(margin, margin + boardH - rows * cell, boardW, rows * cell);
+    }
+
+    /**
+     * 공격을 보냈을 때의 문구를 보드 가운데 아래쪽에서 위로 떠오르게 그린다.
+     * 앞의 절반 동안은 선명하게 보이고, 나머지 절반 동안 옅어지며 사라진다.
+     */
+    private void drawPopup(Graphics2D g2) {
+        String text = effects.popupText();
+        if (text == null) {
+            return;
+        }
+        double progress = Math.min(1.0, Math.max(0.0, effects.popupProgress()));
+        int alpha = (int) Math.round(255 * Math.min(1.0, (1.0 - progress) * 2));
+        int y = margin + boardH * 3 / 5 - (int) Math.round(scaled(BASE_POPUP_RISE) * progress);
+
+        g2.setFont(font(Font.DIALOG, Font.BOLD, 28));
+        FontMetrics fm = g2.getFontMetrics();
+        int x = margin + (boardW - fm.stringWidth(text)) / 2;
+        int shadow = Math.max(1, scaled(2));
+        g2.setColor(new Color(0, 0, 0, alpha));
+        g2.drawString(text, x + shadow, y + shadow);
+        g2.setColor(new Color(ATTACK_POPUP_COLOR.getRed(), ATTACK_POPUP_COLOR.getGreen(),
+                ATTACK_POPUP_COLOR.getBlue(), alpha));
+        g2.drawString(text, x, y);
     }
 
     /** 실제 블럭 아래에 착지 예상 위치를 흐린 # 문자로 그린다. */
@@ -290,9 +349,19 @@ public class GamePanel extends JPanel {
 
         for (int r = 0; r < Math.min(pending.size(), ATTACK_QUEUE_ROWS); r++) {
             GarbageLine line = pending.get(r);
+            boolean highlighted = effects.isQueueRowHighlighted(r);
             for (int c = 0; c < Math.min(line.width(), Board.WIDTH); c++) {
-                if (line.isFilled(c)) {
-                    drawCell(g2, sideX + c * queueCell, top + r * queueCell, CellCode.GARBAGE, queueCell);
+                if (!line.isFilled(c)) {
+                    continue;
+                }
+                int x = sideX + c * queueCell;
+                int y = top + r * queueCell;
+                if (highlighted) {
+                    // 새로 붙은 줄은 깜빡이는 동안 붉게 칠한다
+                    g2.setColor(QUEUE_HIGHLIGHT_COLOR);
+                    g2.fillRect(x + 1, y + 1, queueCell - 2, queueCell - 2);
+                } else {
+                    drawCell(g2, x, y, CellCode.GARBAGE, queueCell);
                 }
             }
         }

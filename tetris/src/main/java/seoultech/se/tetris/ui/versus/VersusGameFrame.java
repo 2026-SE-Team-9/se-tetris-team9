@@ -31,6 +31,8 @@ import seoultech.se.tetris.versus.VersusMatch;
  * 플레이어마다 하나씩 두어 처리한다. 타이머는 대전의 조작기를 거쳐 엔진을 움직이므로,
  * 대전이 진행 중이 아닐 때의 입력은 대전 모델이 걸러낸다.
  *
+ * <p>줄 공격 애니메이션({@link AttackEffects})은 플레이어마다 두고, 진행 중인 동안에만 짧은 주기로 보드를 다시 그린다.
+ *
  * <p>시간제한 모드에서는 남은 시간({@link TimeLimitWatcher})을 짧은 주기로 확인해 화면에 표시하고,
  * 시간이 다 되면 대전에 시간 종료를 알린다. 일시정지 중에는 남은 시간도 멈춘다.
  */
@@ -40,17 +42,23 @@ public final class VersusGameFrame extends JFrame {
 
     /** 시간제한 모드에서 남은 시간을 확인하고 다시 그리는 주기(ms). 1초보다 짧게 두어 표시가 늦지 않게 한다. */
     private static final int CLOCK_TICK_MS = 100;
+    /** 줄 공격 애니메이션을 다시 그리는 주기(ms). 약 30프레임 */
+    private static final int EFFECT_TICK_MS = 33;
 
     private final transient VersusMatch match;
     private final transient VersusScreenModel model;
     private final VersusGamePanel panel;
     private final transient List<GameProgressTimer> progressTimers = new ArrayList<>();
     private final transient List<ClearAnimationTimer> clearTimers = new ArrayList<>();
+    private final transient List<AttackEffects> attackEffects = new ArrayList<>();
+    /** 줄 공격 애니메이션이 진행 중인 동안 보드를 다시 그린다 */
+    private final Timer effectTimer;
     private final transient Runnable onReturnToMenu;
     /** 시간제한 모드가 아니면 {@code null} */
     private final transient TimeLimitWatcher timeLimit;
     /** 시간제한 모드가 아니면 {@code null} */
     private final Timer clockTimer;
+    private final boolean[] effectsWereActive = new boolean[Side.values().length];
     private boolean released;
 
     private VersusGameFrame(VersusMatch match, double scale, boolean colorBlind,
@@ -75,6 +83,7 @@ public final class VersusGameFrame extends JFrame {
         for (Side side : Side.values()) {
             connectPlayer(side);
         }
+        effectTimer = new Timer(EFFECT_TICK_MS, event -> repaintEffects());
         if (timeLimit != null) {
             // 대전 시작(begin) 전에 등록해야 시작 시점부터 잰다
             match.addListener(timeLimit);
@@ -95,6 +104,7 @@ public final class VersusGameFrame extends JFrame {
             public void onMatchEnded(MatchResult result) {
                 // 한쪽이 끝나면 두 보드를 모두 멈추고 승패를 표시한다. (3차 팀 결정)
                 stopTimers();
+                attackEffects.forEach(AttackEffects::clear);
                 model.matchEnded(result);
                 panel.refresh();
             }
@@ -126,6 +136,7 @@ public final class VersusGameFrame extends JFrame {
         frame.panel.requestFocusInWindow();
         match.begin();
         frame.progressTimers.forEach(GameProgressTimer::start);
+        frame.effectTimer.start();
         if (frame.clockTimer != null) {
             frame.clockTimer.start();
         }
@@ -150,6 +161,27 @@ public final class VersusGameFrame extends JFrame {
             @Override public void onSpeedIncreased(int currentInterval) { }
             @Override public void onGameOver(int finalScore) { board.repaint(); }
         });
+
+        // 줄 공격 애니메이션: 공격을 보내고 받는 것과 대기 줄이 보드에 추가되는 것을 보드에 표시한다
+        AttackEffects effects = AttackEffects.realTime();
+        attackEffects.add(effects);
+        board.setEffects(effects);
+        match.addGameListener(side, new AttackEffectWatcher(match.state(side), effects));
+    }
+
+    /**
+     * 애니메이션이 진행 중인 보드를 다시 그린다. 애니메이션이 끝난 직후에도 한 번 더 그려야 마지막 모습이
+     * 남지 않으므로, 진행 중이었던 보드도 다시 그린다.
+     */
+    private void repaintEffects() {
+        for (Side side : Side.values()) {
+            GamePanel board = panel.board(side);
+            boolean active = board.getEffects().isActive();
+            if (active || effectsWereActive[side.ordinal()]) {
+                board.repaint();
+            }
+            effectsWereActive[side.ordinal()] = active;
+        }
     }
 
     /** 대전 중 Esc. 두 보드를 멈추고 나갈지 묻는다. 나가지 않으면 이어서 진행한다. */
@@ -179,6 +211,7 @@ public final class VersusGameFrame extends JFrame {
     private void stopTimers() {
         progressTimers.forEach(GameProgressTimer::stop);
         clearTimers.forEach(ClearAnimationTimer::stop);
+        effectTimer.stop();
         if (clockTimer != null) {
             clockTimer.stop();
         }
