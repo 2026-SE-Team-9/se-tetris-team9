@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
+import javax.swing.JRootPane;
 import javax.swing.SwingUtilities;
 
 import org.junit.jupiter.api.Test;
@@ -33,69 +34,79 @@ class VersusGameFrameTest {
     @TempDir
     Path tempDir;
 
+    private static final VersusGameSession.WindowHost NO_OP_HOST = new VersusGameSession.WindowHost() {
+        @Override public void packAndCenter() { }
+        @Override public void disposeWindow() { }
+        @Override public boolean confirmQuit() { return true; }
+    };
+
     /** 로컬 대전 중 Esc로 일시정지하면 타이머가 멈추고, 재개하면 다시 시작한다. */
     @Test
     void escPausesTimersAndShowsPauseMenuThenResumes() throws Exception {
         AtomicBoolean returned = new AtomicBoolean(false);
-        VersusGameFrame[] holder = new VersusGameFrame[1];
+        VersusGameSession[] holder = new VersusGameSession[1];
         LocalMatch match = LocalMatch.create(VersusMode.TIME_LIMIT, Difficulty.DEFAULT, 1L);
         try {
             SwingUtilities.invokeAndWait(() -> {
                 PropertiesBattleKeyConfigService keys = new PropertiesBattleKeyConfigService(
                         tempDir.resolve("battle-keys.properties"));
-                VersusGameFrame frame = VersusGameFrame.launch(match, 1.0, false, keys,
-                        () -> returned.set(true), result -> {},
+                JRootPane rootPane = new JRootPane();
+                VersusGameSession session = new VersusGameSession(match, 1.0, false, keys, rootPane,
+                        NO_OP_HOST, () -> returned.set(true), result -> {},
                         () -> new PropertiesAppSettingsService(tempDir.resolve("settings.properties")));
-                holder[0] = frame;
+                holder[0] = session;
+                session.start();
 
                 assertEquals(MatchPhase.PLAYING, match.phase());
-                assertTrue(frame.isEffectTimerRunning());
-                assertTrue(frame.isClockTimerRunning());
-                assertFalse(frame.getGlassPane().isVisible());
+                assertTrue(session.isEffectTimerRunning());
+                assertTrue(session.isClockTimerRunning());
+                assertFalse(rootPane.getGlassPane().isVisible());
 
                 // Esc 입력 → 일시정지 메뉴 표시 및 모든 타이머 정지
-                pressKey(frame.panel(), KeyEvent.VK_ESCAPE);
+                pressKey(session.panel(), KeyEvent.VK_ESCAPE);
                 assertEquals(MatchPhase.PAUSED, match.phase());
-                assertInstanceOf(PauseMenuPanel.class, frame.getGlassPane());
-                assertTrue(frame.getGlassPane().isVisible());
-                assertFalse(frame.isEffectTimerRunning());
-                assertFalse(frame.isClockTimerRunning());
+                assertInstanceOf(PauseMenuPanel.class, rootPane.getGlassPane());
+                assertTrue(rootPane.getGlassPane().isVisible());
+                assertFalse(session.isEffectTimerRunning());
+                assertFalse(session.isClockTimerRunning());
 
                 // 일시정지 메뉴에서 Esc → 재개 및 타이머 재시작
-                pressKey(frame.getGlassPane(), KeyEvent.VK_ESCAPE);
+                pressKey(rootPane.getGlassPane(), KeyEvent.VK_ESCAPE);
                 assertEquals(MatchPhase.PLAYING, match.phase());
-                assertFalse(frame.getGlassPane().isVisible());
-                assertTrue(frame.isEffectTimerRunning());
-                assertTrue(frame.isClockTimerRunning());
+                assertFalse(rootPane.getGlassPane().isVisible());
+                assertTrue(session.isEffectTimerRunning());
+                assertTrue(session.isClockTimerRunning());
                 assertFalse(returned.get());
             });
         } finally {
-            disposeQuietly(holder[0]);
+            releaseQuietly(holder[0]);
         }
     }
 
     /** 일시정지 메뉴에서 설정을 열면 키 설정이 제외되고, 저장 후 닫으면 일시정지 메뉴로 복귀한다. */
     @Test
     void settingsFromPauseHidesKeyEditingAndReturnsToPauseMenu() throws Exception {
-        VersusGameFrame[] holder = new VersusGameFrame[1];
+        VersusGameSession[] holder = new VersusGameSession[1];
         LocalMatch match = LocalMatch.create(VersusMode.NORMAL, Difficulty.DEFAULT, 2L);
         try {
             SwingUtilities.invokeAndWait(() -> {
                 PropertiesBattleKeyConfigService keys = new PropertiesBattleKeyConfigService(
                         tempDir.resolve("battle-keys.properties"));
                 Path settingsPath = tempDir.resolve("app-settings.properties");
-                VersusGameFrame frame = VersusGameFrame.launch(match, 1.0, false, keys,
-                        () -> {}, result -> {},
+                JRootPane rootPane = new JRootPane();
+                VersusGameSession session = new VersusGameSession(match, 1.0, false, keys, rootPane,
+                        NO_OP_HOST, () -> {}, result -> {},
                         () -> new PropertiesAppSettingsService(settingsPath));
-                holder[0] = frame;
+                holder[0] = session;
+                session.start();
 
-                frame.pauseAndShowMenu();
+                session.pauseAndShowMenu();
                 assertEquals(MatchPhase.PAUSED, match.phase());
 
-                frame.showSettings();
-                assertInstanceOf(SettingsPanel.class, frame.getContentPane());
-                SettingsPanel settingsPanel = (SettingsPanel) frame.getContentPane();
-                assertFalse(frame.getGlassPane().isVisible());
+                session.showSettings();
+                assertInstanceOf(SettingsPanel.class, rootPane.getContentPane());
+                SettingsPanel settingsPanel = (SettingsPanel) rootPane.getContentPane();
+                assertFalse(rootPane.getGlassPane().isVisible());
                 assertFalse(hasLabel(settingsPanel, "1인 조작 키"));
                 assertFalse(hasLabel(settingsPanel, "대전 조작 키 (2인)"));
 
@@ -105,13 +116,13 @@ class VersusGameFrameTest {
                 JButton saveButton = findButton(settingsPanel, "저장");
                 saveButton.doClick();
 
-                assertEquals(frame.panel(), frame.getContentPane());
-                assertTrue(frame.getGlassPane().isVisible());
+                assertEquals(session.panel(), rootPane.getContentPane());
+                assertTrue(rootPane.getGlassPane().isVisible());
                 assertEquals(MatchPhase.PAUSED, match.phase());
-                assertFalse(frame.isEffectTimerRunning());
+                assertFalse(session.isEffectTimerRunning());
             });
         } finally {
-            disposeQuietly(holder[0]);
+            releaseQuietly(holder[0]);
         }
     }
 
@@ -119,24 +130,26 @@ class VersusGameFrameTest {
     @Test
     void returnToMenuQuitsMatchAndInvokesCallback() throws Exception {
         AtomicBoolean returned = new AtomicBoolean(false);
-        VersusGameFrame[] holder = new VersusGameFrame[1];
+        VersusGameSession[] holder = new VersusGameSession[1];
         LocalMatch match = LocalMatch.create(VersusMode.NORMAL, Difficulty.DEFAULT, 3L);
         try {
             SwingUtilities.invokeAndWait(() -> {
                 PropertiesBattleKeyConfigService keys = new PropertiesBattleKeyConfigService(
                         tempDir.resolve("battle-keys.properties"));
-                VersusGameFrame frame = VersusGameFrame.launch(match, 1.0, false, keys,
-                        () -> returned.set(true), result -> {},
+                JRootPane rootPane = new JRootPane();
+                VersusGameSession session = new VersusGameSession(match, 1.0, false, keys, rootPane,
+                        NO_OP_HOST, () -> returned.set(true), result -> {},
                         () -> new PropertiesAppSettingsService(tempDir.resolve("settings.properties")));
-                holder[0] = frame;
+                holder[0] = session;
+                session.start();
 
-                frame.returnToMenu();
+                session.returnToMenu();
                 assertEquals(MatchPhase.ENDED, match.phase());
-                assertFalse(frame.isEffectTimerRunning());
+                assertFalse(session.isEffectTimerRunning());
             });
             SwingUtilities.invokeAndWait(() -> assertTrue(returned.get()));
         } finally {
-            disposeQuietly(holder[0]);
+            releaseQuietly(holder[0]);
         }
     }
 
@@ -190,9 +203,9 @@ class VersusGameFrameTest {
         return null;
     }
 
-    private static void disposeQuietly(VersusGameFrame frame) throws Exception {
-        if (frame != null) {
-            SwingUtilities.invokeAndWait(frame::dispose);
+    private static void releaseQuietly(VersusGameSession session) throws Exception {
+        if (session != null) {
+            SwingUtilities.invokeAndWait(session::release);
         }
     }
 }
