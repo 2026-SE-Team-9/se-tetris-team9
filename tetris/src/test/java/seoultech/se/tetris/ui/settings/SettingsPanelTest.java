@@ -106,7 +106,7 @@ class SettingsPanelTest {
         SwingUtilities.invokeAndWait(() -> {
             SettingsPanel panel = settingsPanel(tempDir.resolve("navigation.properties"), () -> {});
             Component singleTab = findButton(panel, "일반 모드");
-            Component battleTab = findButton(panel, "대전 모드");
+            Component battleTab = findButton(panel, "로컬 대전");
             JComboBox<?> size = (JComboBox<?>) find(panel, JComboBox.class, 0);
             Component difficulty = find(panel, JComboBox.class, 1);
             Component colorBlind = find(panel, JCheckBox.class, 0);
@@ -152,7 +152,7 @@ class SettingsPanelTest {
         SwingUtilities.invokeAndWait(() -> {
             SettingsPanel panel = settingsPanel(tempDir.resolve("tab-switch.properties"), () -> {});
             JButton singleTab = (JButton) findButton(panel, "일반 모드");
-            JButton battleTab = (JButton) findButton(panel, "대전 모드");
+            JButton battleTab = (JButton) findButton(panel, "로컬 대전");
 
             // 대전 모드 탭 선택
             battleTab.doClick();
@@ -194,7 +194,7 @@ class SettingsPanelTest {
             assertFalse(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsScoreReset());
 
             // 대전 모드 탭으로 전환
-            JButton battleTab = (JButton) findButton(panel, "대전 모드");
+            JButton battleTab = (JButton) findButton(panel, "로컬 대전");
             battleTab.doClick();
 
             // 대전 키 버튼은 활성화되어 있어야 함
