@@ -34,11 +34,11 @@ class PropertiesBattleKeyConfigServiceTest {
         assertEquals(KeyEvent.VK_SHIFT, service.getKey(BattlePlayer.P1, BattleAction.HARD_DROP));
         assertEquals(KeyEvent.VK_W, service.getKey(BattlePlayer.P1, BattleAction.ROTATE));
 
-        // 2P 기본값 검증: 방향키 + Ctrl
+        // 2P 기본값 검증: 방향키 + End
         assertEquals(KeyEvent.VK_LEFT, service.getKey(BattlePlayer.P2, BattleAction.MOVE_LEFT));
         assertEquals(KeyEvent.VK_RIGHT, service.getKey(BattlePlayer.P2, BattleAction.MOVE_RIGHT));
         assertEquals(KeyEvent.VK_DOWN, service.getKey(BattlePlayer.P2, BattleAction.SOFT_DROP));
-        assertEquals(KeyEvent.VK_CONTROL, service.getKey(BattlePlayer.P2, BattleAction.HARD_DROP));
+        assertEquals(KeyEvent.VK_END, service.getKey(BattlePlayer.P2, BattleAction.HARD_DROP));
         assertEquals(KeyEvent.VK_UP, service.getKey(BattlePlayer.P2, BattleAction.ROTATE));
 
         // 슬롯 레코드 편의 메서드 검증

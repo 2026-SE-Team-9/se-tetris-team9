@@ -33,7 +33,7 @@ class VersusKeyMapTest {
     @TempDir
     Path dir;
 
-    /** 저장 파일이 없으므로 기본 2인 키 설정(P1: WASD + Shift, P2: 방향키 + Ctrl)이다. */
+    /** 저장 파일이 없으므로 기본 2인 키 설정(P1: WASD + Shift, P2: 방향키 + End)이다. */
     private PropertiesBattleKeyConfigService keyConfig;
     private VersusKeyMap keyMap;
     private final Map<Side, List<String>> calls = new EnumMap<>(Side.class);
@@ -87,7 +87,7 @@ class VersusKeyMapTest {
         keyMap.dispatch(KeyEvent.VK_LEFT, this::recording);
         keyMap.dispatch(KeyEvent.VK_RIGHT, this::recording);
         keyMap.dispatch(KeyEvent.VK_DOWN, this::recording);
-        keyMap.dispatch(KeyEvent.VK_CONTROL, this::recording);
+        keyMap.dispatch(KeyEvent.VK_END, this::recording);
         keyMap.dispatch(KeyEvent.VK_UP, this::recording);
 
         assertEquals(List.of("left", "right", "down", "drop", "rotate"), calls.get(Side.P2));

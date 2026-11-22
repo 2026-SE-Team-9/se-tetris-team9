@@ -66,7 +66,7 @@ class VersusKeyInputTest {
         press(KeyEvent.VK_A);
         press(KeyEvent.VK_LEFT);
         press(KeyEvent.VK_W);
-        press(KeyEvent.VK_CONTROL);
+        press(KeyEvent.VK_END);
 
         assertEquals(List.of("P1:left", "P2:left", "P1:rotate", "P2:drop"), log);
     }
