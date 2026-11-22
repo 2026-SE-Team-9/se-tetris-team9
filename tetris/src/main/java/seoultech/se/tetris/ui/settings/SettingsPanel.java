@@ -706,13 +706,16 @@ public final class SettingsPanel extends JPanel {
             Difficulty savedBattleDifficulty = context.allowsDifficulty()
                     ? battleOptions.getDifficulty()
                     : settings.current().battleDifficulty();
+            AppSettings existing = settings.current();
             settings.save(new AppSettings(
                     singleOptions.getScreenSize(),
                     singleOptions.isColorBlind(),
                     savedDifficulty,
                     battleOptions.getScreenSize(),
                     battleOptions.isColorBlind(),
-                    savedBattleDifficulty));
+                    savedBattleDifficulty,
+                    existing.p2pPort(),
+                    existing.recentPeers()));
             if (context.allowsP2PSettings()) {
                 p2pModel.applyPort();
             }
