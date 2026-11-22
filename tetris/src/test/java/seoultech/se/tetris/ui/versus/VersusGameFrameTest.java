@@ -110,12 +110,17 @@ class VersusGameFrameTest {
                 assertFalse(hasLabel(settingsPanel, "1인 조작 키"));
                 assertFalse(hasLabel(settingsPanel, "대전 조작 키 (2인)"));
 
-                // 색맹 모드 변경 후 저장 → 대전 화면 + 일시정지 메뉴로 복귀
-                JCheckBox colorBlind = findComponent(settingsPanel, JCheckBox.class);
-                colorBlind.setSelected(true);
+                // 로컬 대전 탭에서 색맹 모드 변경 후 저장 → 대전 화면 + 일시정지 메뉴로 복귀
+                JButton battleTab = findButton(settingsPanel, "로컬 대전");
+                battleTab.doClick();
+                JCheckBox battleColorBlind = findComponent(settingsPanel, JCheckBox.class, 1);
+                battleColorBlind.setSelected(true);
                 JButton saveButton = findButton(settingsPanel, "저장");
                 saveButton.doClick();
 
+                PropertiesAppSettingsService reloaded = new PropertiesAppSettingsService(settingsPath);
+                reloaded.load();
+                assertTrue(reloaded.current().battleColorBlind());
                 assertEquals(session.panel(), rootPane.getContentPane());
                 assertTrue(rootPane.getGlassPane().isVisible());
                 assertEquals(MatchPhase.PAUSED, match.phase());
@@ -173,13 +178,21 @@ class VersusGameFrameTest {
         return false;
     }
 
-    private static <T> T findComponent(Container root, Class<T> type) {
+    private static <T> T findComponent(Container root, Class<T> type, int index) {
+        int[] current = {0};
+        return findComponent(root, type, index, current);
+    }
+
+    private static <T> T findComponent(Container root, Class<T> type, int targetIndex, int[] current) {
         for (Component child : root.getComponents()) {
             if (type.isInstance(child)) {
-                return type.cast(child);
+                if (current[0] == targetIndex) {
+                    return type.cast(child);
+                }
+                current[0]++;
             }
             if (child instanceof Container container) {
-                T found = findComponent(container, type);
+                T found = findComponent(container, type, targetIndex, current);
                 if (found != null) {
                     return found;
                 }

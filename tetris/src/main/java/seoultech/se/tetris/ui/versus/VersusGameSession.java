@@ -204,8 +204,8 @@ final class VersusGameSession {
 
         SettingsPanel settingsPanel = new SettingsPanel(settings, keyConfig, battleKeys, new CsvScoreRepository(),
                 SettingsPanel.Context.LOCAL_BATTLE_IN_GAME, () -> {}, () -> {}, () -> {
-                    double updatedScale = settings.current().screenSize().scale();
-                    boolean updatedColorBlind = settings.current().colorBlind();
+                    double updatedScale = settings.current().battleScreenSize().scale();
+                    boolean updatedColorBlind = settings.current().battleColorBlind();
                     for (Side side : Side.values()) {
                         panel.board(side).setScale(updatedScale);
                         panel.board(side).setColorBlind(updatedColorBlind);
