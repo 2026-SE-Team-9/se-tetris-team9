@@ -7,7 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.awt.event.KeyEvent;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.swing.JPanel;
@@ -17,6 +19,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import seoultech.se.tetris.component.controller.GameController;
+import seoultech.se.tetris.config.BattleKeyConfigService.BattleAction;
+import seoultech.se.tetris.config.BattleKeyConfigService.BattleKeySlot;
+import seoultech.se.tetris.config.BattleKeyConfigService.BattlePlayer;
 import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
 import seoultech.se.tetris.versus.EndReason;
 import seoultech.se.tetris.versus.MatchResult;
@@ -38,7 +43,7 @@ class VersusKeyInputTest {
                 new PropertiesBattleKeyConfigService(dir.resolve("battle_keybindings.properties")));
         model = new VersusScreenModel(VersusMode.NORMAL);
         input = new VersusKeyInput(keyMap, this::controller, model,
-                () -> log.add("quit?"), () -> log.add("result"));
+                () -> log.add("pause"), () -> log.add("result"));
     }
 
     private Optional<GameController> controller(Side side) {
@@ -72,10 +77,26 @@ class VersusKeyInputTest {
     }
 
     @Test
-    void 대전_중_Esc는_나가기_확인을_요청한다() {
+    void 키_설정이_바뀌면_새_키로_조작한다() {
+        PropertiesBattleKeyConfigService changed =
+                new PropertiesBattleKeyConfigService(dir.resolve("changed_keybindings.properties"));
+        Map<BattleKeySlot, Integer> bindings = new HashMap<>(changed.getAllBindings());
+        bindings.put(new BattleKeySlot(BattlePlayer.P1, BattleAction.MOVE_LEFT), KeyEvent.VK_J);
+        changed.saveBindings(bindings);
+
+        input.setKeyMap(new VersusKeyMap(changed));
+        press(KeyEvent.VK_J);
+        press(KeyEvent.VK_A);
+
+        assertEquals(List.of("P1:left"), log);
+        assertThrows(NullPointerException.class, () -> input.setKeyMap(null));
+    }
+
+    @Test
+    void 대전_중_Esc는_일시정지_메뉴를_요청한다() {
         press(KeyEvent.VK_ESCAPE);
 
-        assertEquals(List.of("quit?"), log);
+        assertEquals(List.of("pause"), log);
     }
 
     @Test

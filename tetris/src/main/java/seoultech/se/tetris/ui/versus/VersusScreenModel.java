@@ -15,7 +15,7 @@ import seoultech.se.tetris.versus.VersusMode;
  */
 public class VersusScreenModel {
 
-    static final String PLAYING_HINT = "Esc  시작 메뉴로";
+    static final String PLAYING_HINT = "Esc  일시정지";
     static final String ENDED_HINT = "Enter  결과 화면으로";
 
     private final VersusMode mode;

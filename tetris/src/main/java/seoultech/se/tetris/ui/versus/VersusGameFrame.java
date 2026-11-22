@@ -2,6 +2,7 @@ package seoultech.se.tetris.ui.versus;
 
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -14,10 +15,17 @@ import javax.swing.Timer;
 
 import seoultech.se.tetris.component.controller.GameController;
 import seoultech.se.tetris.component.listener.GameEventListener;
+import seoultech.se.tetris.config.AppSettings;
 import seoultech.se.tetris.config.BattleKeyConfigService;
+import seoultech.se.tetris.config.PropertiesAppSettingsService;
+import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
+import seoultech.se.tetris.config.PropertiesKeyConfigService;
+import seoultech.se.tetris.score.CsvScoreRepository;
 import seoultech.se.tetris.ui.game.ClearAnimationTimer;
 import seoultech.se.tetris.ui.game.GamePanel;
 import seoultech.se.tetris.ui.game.GameProgressTimer;
+import seoultech.se.tetris.ui.game.PauseMenuPanel;
+import seoultech.se.tetris.ui.settings.SettingsPanel;
 import seoultech.se.tetris.versus.MatchListener;
 import seoultech.se.tetris.versus.MatchPhase;
 import seoultech.se.tetris.versus.MatchResult;
@@ -36,6 +44,10 @@ import seoultech.se.tetris.versus.VersusMatch;
  *
  * <p>시간제한 모드에서는 남은 시간({@link TimeLimitWatcher})을 짧은 주기로 확인해 화면에 표시하고,
  * 시간이 다 되면 대전에 시간 종료를 알린다. 일시정지 중에는 남은 시간도 멈춘다.
+ *
+ * <p>Esc를 누르면 두 보드를 멈추고 1인 모드와 같은 일시정지 메뉴(재개 / 설정 / 시작 메뉴로 돌아가기)를 연다.
+ * 설정은 로컬 대전 전용 설정 화면({@link SettingsPanel.Context#LOCAL_BATTLE_IN_GAME})이며,
+ * 저장하면 대전용 화면 크기·색맹 모드를 두 보드에, 2인 키를 입력에 바로 적용한다. (3차 팀 결정)
  */
 public final class VersusGameFrame extends JFrame {
 
@@ -62,8 +74,10 @@ public final class VersusGameFrame extends JFrame {
     private final Timer resultTimer;
     /** 결과가 정해져 끝났을 때의 결과. 끝나지 않았으면 {@code null} */
     private transient MatchResult finishedResult;
-    /** 나가기 확인 창이 떠 있는지 */
-    private boolean confirmingQuit;
+    /** 일시정지 메뉴, 설정 화면, 나가기 확인 창 중 하나가 열려 있는지 */
+    private boolean pausedUi;
+    private final transient VersusKeyInput keyInput;
+    private final PauseMenuPanel pauseMenu;
     /** 시간제한 모드가 아니면 {@code null} */
     private final transient TimeLimitWatcher timeLimit;
     /** 시간제한 모드가 아니면 {@code null} */
@@ -126,8 +140,12 @@ public final class VersusGameFrame extends JFrame {
             }
         });
 
-        panel.addKeyListener(new VersusKeyInput(new VersusKeyMap(keyConfig), match::controller, model,
-                this::confirmQuit, this::showResult));
+        keyInput = new VersusKeyInput(new VersusKeyMap(keyConfig), match::controller, model,
+                this::openPauseMenu, this::showResult);
+        panel.addKeyListener(keyInput);
+        pauseMenu = new PauseMenuPanel(this::resumeFromPause, this::showSettings,
+                "시작 메뉴로 돌아가기", this::confirmLeave);
+        setGlassPane(pauseMenu);
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosing(WindowEvent event) { release(); }
             @Override public void windowClosed(WindowEvent event) { release(); }
@@ -203,26 +221,87 @@ public final class VersusGameFrame extends JFrame {
         }
     }
 
-    /** 대전 중 Esc. 두 보드를 멈추고 나갈지 묻는다. 나가지 않으면 이어서 진행한다. */
-    private void confirmQuit() {
-        match.pause();
-        confirmingQuit = true;
-        int choice;
-        try {
-            choice = JOptionPane.showConfirmDialog(this,
-                    "현재 대전 진행 상황이 사라집니다. 시작 메뉴로 돌아가시겠습니까?",
-                    "대전 나가기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        } finally {
-            confirmingQuit = false;
+    /** 대전 중 Esc. 두 보드를 멈추고 일시정지 메뉴를 연다. */
+    private void openPauseMenu() {
+        if (released || finishedResult != null) {
+            return;
         }
+        match.pause();
+        pausedUi = true;
+        showPauseMenu();
+    }
+
+    private void showPauseMenu() {
+        getGlassPane().setVisible(true);
+        pauseMenu.requestFocusInWindow();
+        panel.repaint();
+    }
+
+    /**
+     * 일시정지 메뉴의 재개(또는 Esc). 두 보드를 이어서 진행한다.
+     * 일시정지 중에 대전이 끝났으면(멈추기 전의 줄 삭제 처리로 끝난 경우) 결과로 넘어간다.
+     */
+    private void resumeFromPause() {
+        getGlassPane().setVisible(false);
+        pausedUi = false;
+        if (finishedResult != null) {
+            showResult();
+            return;
+        }
+        match.resume();
+        panel.requestFocusInWindow();
+    }
+
+    /** 일시정지 메뉴의 시작 메뉴로 돌아가기. 확인을 받으면 대전을 끝내고 시작 메뉴로 돌아간다. */
+    private void confirmLeave() {
+        int choice = JOptionPane.showConfirmDialog(this,
+                "현재 대전 진행 상황이 사라집니다. 시작 메뉴로 돌아가시겠습니까?",
+                "대전 나가기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (choice == JOptionPane.YES_OPTION) {
             returnToMenu();
-        } else if (finishedResult != null) {
-            // 확인 창이 떠 있는 동안 대전이 끝났으면(멈추기 전의 줄 삭제 처리로 끝난 경우) 결과로 넘어간다
-            showResult();
         } else {
-            match.resume();
-            panel.requestFocusInWindow();
+            pauseMenu.requestFocusInWindow();
+        }
+    }
+
+    /** 일시정지 메뉴의 설정. 로컬 대전 전용 설정 화면으로 바꾼다. */
+    private void showSettings() {
+        PropertiesAppSettingsService settings = new PropertiesAppSettingsService();
+        loadOrKeepDefaults(settings::load);
+        PropertiesKeyConfigService keys = new PropertiesKeyConfigService();
+        loadOrKeepDefaults(keys::load);
+        PropertiesBattleKeyConfigService battleKeys = new PropertiesBattleKeyConfigService();
+        loadOrKeepDefaults(battleKeys::load);
+        SettingsPanel settingsPanel = new SettingsPanel(settings, keys, battleKeys, new CsvScoreRepository(),
+                SettingsPanel.Context.LOCAL_BATTLE_IN_GAME, () -> { },
+                () -> keyInput.setKeyMap(new VersusKeyMap(battleKeys)),
+                () -> closeSettings(settings));
+        getGlassPane().setVisible(false);
+        setContentPane(settingsPanel);
+        pack();
+        setLocationRelativeTo(null);
+    }
+
+    /** 설정 화면을 닫고 일시정지 메뉴로 돌아간다. 저장했다면 바뀐 대전용 화면 크기와 색맹 모드를 두 보드에 적용한다. */
+    private void closeSettings(PropertiesAppSettingsService settings) {
+        AppSettings current = settings.current();
+        for (Side side : Side.values()) {
+            GamePanel board = panel.board(side);
+            board.setScale(current.battleScreenSize().scale());
+            board.setColorBlind(current.battleColorBlind());
+        }
+        setContentPane(panel);
+        pack();
+        setLocationRelativeTo(null);
+        showPauseMenu();
+    }
+
+    /** 설정 파일을 읽지 못하면 기본값으로 둔다. */
+    private static void loadOrKeepDefaults(Runnable load) {
+        try {
+            load.run();
+        } catch (UncheckedIOException e) {
+            // 기본값으로 계속 진행한다
         }
     }
 
@@ -239,8 +318,8 @@ public final class VersusGameFrame extends JFrame {
     /** 대전을 정리하고 창을 닫은 뒤 대전 종료 화면으로 넘어간다. 결과가 정해지지 않았으면 아무것도 하지 않는다. */
     private void showResult() {
         MatchResult result = finishedResult;
-        if (released || result == null || confirmingQuit) {
-            // 나가기 확인 창이 떠 있으면 창이 닫힌 뒤 confirmQuit에서 처리한다
+        if (released || result == null || pausedUi) {
+            // 일시정지 화면이 열려 있으면 재개할 때 resumeFromPause에서 처리한다
             return;
         }
         release();

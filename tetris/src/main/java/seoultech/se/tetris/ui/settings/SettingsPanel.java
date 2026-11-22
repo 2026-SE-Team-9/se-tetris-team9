@@ -72,28 +72,40 @@ public final class SettingsPanel extends JPanel {
      *
      * <p>난이도와 스코어보드 기록 초기화는 시작 메뉴에서만 바꿀 수 있다.
      * 게임 중에는 진행 중인 판의 규칙과 기록이 어긋나지 않도록 두 항목을 보여주지 않는다.
+     *
+     * <p>게임 중 설정은 진행 중인 게임의 설정만 보여준다. 1인 게임 중에는 일반 모드, 로컬 대전 중에는
+     * 로컬 대전 설정만 있다. (3차 팀 결정: 로컬 대전의 일시정지 중 설정 화면은 1인 모드와 따로 둔다)
+     * P2P 대전 탭은 대전을 시작하기 전인 시작 메뉴의 설정에만 있다.
      */
     public enum Context {
         /** 시작 메뉴에서 연 설정 */
-        START_MENU(true, true, true),
+        START_MENU(true, true, Tab.SINGLE, Tab.LOCAL_BATTLE, Tab.P2P),
         /** 1인 게임 중 일시정지 메뉴에서 연 설정 */
-        IN_GAME(false, true, false),
+        IN_GAME(false, true, Tab.SINGLE),
         /** 로컬 대전 게임 중 일시정지 메뉴에서 연 설정 */
-        LOCAL_BATTLE_IN_GAME(false, true, false);
+        LOCAL_BATTLE_IN_GAME(false, true, Tab.LOCAL_BATTLE);
 
         private final boolean fullAccess;
         private final boolean allowsKeyEditing;
-        private final boolean allowsP2PSettings;
+        private final List<Tab> tabs;
 
-        Context(boolean fullAccess, boolean allowsKeyEditing, boolean allowsP2PSettings) {
+        Context(boolean fullAccess, boolean allowsKeyEditing, Tab... tabs) {
             this.fullAccess = fullAccess;
             this.allowsKeyEditing = allowsKeyEditing;
-            this.allowsP2PSettings = allowsP2PSettings;
+            this.tabs = List.of(tabs);
         }
 
-        /** P2P 대전 탭은 대전을 시작하기 전인 시작 메뉴의 설정에서만 보여준다. */
+        /** 이 설정 화면에서 보여주는 탭. 첫 탭을 처음에 연다. */
+        List<Tab> tabs() {
+            return tabs;
+        }
+
+        boolean shows(Tab tab) {
+            return tabs.contains(tab);
+        }
+
         boolean allowsP2PSettings() {
-            return allowsP2PSettings;
+            return shows(Tab.P2P);
         }
 
         boolean allowsDifficulty() {
@@ -204,7 +216,7 @@ public final class SettingsPanel extends JPanel {
 
         buildContent();
         loadCurrentValues();
-        selectTab(Tab.SINGLE);
+        selectTab(availableTabs().get(0));
     }
 
     @Override
@@ -212,8 +224,8 @@ public final class SettingsPanel extends JPanel {
         super.addNotify();
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(keyboardDispatcher);
         SwingUtilities.invokeLater(() -> {
-            if (isShowing()) {
-                singleModeTab.requestFocusInWindow();
+            if (isShowing() && !navigationRows.isEmpty()) {
+                navigationRows.get(0).get(0).requestFocusInWindow();
             }
         });
     }
@@ -363,27 +375,27 @@ public final class SettingsPanel extends JPanel {
         mainContent.add(title);
         mainContent.add(Box.createVerticalStrut(14));
 
-        // 최상단 탭 바 (일반 모드 / 로컬 대전 / P2P 대전)
-        JPanel topTabBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        topTabBar.setBackground(BACKGROUND);
-        topTabBar.setAlignmentX(Component.LEFT_ALIGNMENT);
-        for (Tab tab : availableTabs()) {
-            JButton button = tabButton(tab);
-            styleButton(button, tab == Tab.SINGLE);
-            button.addActionListener(event -> selectTab(tab));
-            topTabBar.add(button);
-        }
-        mainContent.add(topTabBar);
-        mainContent.add(Box.createVerticalStrut(6));
+        // 최상단 탭 바 (일반 모드 / 로컬 대전 / P2P 대전). 탭이 하나뿐인 게임 중 설정에는 두지 않는다.
+        if (hasTabBar()) {
+            JPanel topTabBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+            topTabBar.setBackground(BACKGROUND);
+            topTabBar.setAlignmentX(Component.LEFT_ALIGNMENT);
+            for (Tab tab : availableTabs()) {
+                JButton button = tabButton(tab);
+                styleButton(button, tab == availableTabs().get(0));
+                button.addActionListener(event -> selectTab(tab));
+                topTabBar.add(button);
+            }
+            mainContent.add(topTabBar);
+            mainContent.add(Box.createVerticalStrut(6));
 
-        JLabel tabHint = label(context.allowsP2PSettings()
-                ? "Tab 키 또는 방향키로 일반 / 로컬 대전 / P2P 대전 설정을 전환할 수 있습니다."
-                : "Tab 키 또는 방향키로 일반 / 로컬 대전 설정을 전환할 수 있습니다.");
-        tabHint.setFont(new Font(Font.DIALOG, Font.PLAIN, 11));
-        tabHint.setForeground(MUTED);
-        tabHint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        mainContent.add(tabHint);
-        mainContent.add(Box.createVerticalStrut(14));
+            JLabel tabHint = label(tabHintText());
+            tabHint.setFont(new Font(Font.DIALOG, Font.PLAIN, 11));
+            tabHint.setForeground(MUTED);
+            tabHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+            mainContent.add(tabHint);
+            mainContent.add(Box.createVerticalStrut(14));
+        }
 
         // 일반 모드 패널 및 대전 모드 패널 조립
         buildSingleModePanel();
@@ -542,11 +554,21 @@ public final class SettingsPanel extends JPanel {
         return currentTab;
     }
 
-    /** 이 설정 화면에서 보여주는 탭. P2P 대전 탭은 시작 메뉴의 설정에만 있다. */
+    /** 이 설정 화면에서 보여주는 탭 */
     List<Tab> availableTabs() {
-        return context.allowsP2PSettings()
-                ? List.of(Tab.SINGLE, Tab.LOCAL_BATTLE, Tab.P2P)
-                : List.of(Tab.SINGLE, Tab.LOCAL_BATTLE);
+        return context.tabs();
+    }
+
+    /** 탭이 둘 이상일 때만 탭 바를 둔다. */
+    boolean hasTabBar() {
+        return availableTabs().size() > 1;
+    }
+
+    /** 탭 바 아래 안내. 예: "Tab 키 또는 방향키로 일반 모드 / 로컬 대전 / P2P 대전 설정을 전환할 수 있습니다." */
+    String tabHintText() {
+        return "Tab 키 또는 방향키로 "
+                + String.join(" / ", availableTabs().stream().map(Tab::label).toList())
+                + " 설정을 전환할 수 있습니다.";
     }
 
     private Tab nextTab() {
@@ -574,7 +596,9 @@ public final class SettingsPanel extends JPanel {
 
     void rebuildNavigationRows() {
         navigationRows.clear();
-        navigationRows.add(availableTabs().stream().map(tab -> (JComponent) tabButton(tab)).toList());
+        if (hasTabBar()) {
+            navigationRows.add(availableTabs().stream().map(tab -> (JComponent) tabButton(tab)).toList());
+        }
 
         switch (currentTab) {
             case SINGLE -> {
@@ -653,36 +677,45 @@ public final class SettingsPanel extends JPanel {
         battleKeyBindings.refreshKeys();
     }
 
+    /** 이 화면에 보이는 탭의 설정만 기본값으로 되돌린다. 보이지 않는 탭의 설정은 그대로 둔다. */
     private void restoreDefaults() {
         keyBindings.cancelKeyCapture();
         battleKeyBindings.cancelKeyCapture();
-        singleOptions.setScreenSize(AppSettings.DEFAULT.screenSize());
-        battleOptions.setScreenSize(AppSettings.DEFAULT.battleScreenSize());
-        if (context.allowsDifficulty()) {
-            singleOptions.setDifficulty(AppSettings.DEFAULT.difficulty());
-            battleOptions.setDifficulty(AppSettings.DEFAULT.battleDifficulty());
+        if (context.shows(Tab.SINGLE)) {
+            singleOptions.setScreenSize(AppSettings.DEFAULT.screenSize());
+            if (context.allowsDifficulty()) {
+                singleOptions.setDifficulty(AppSettings.DEFAULT.difficulty());
+            }
+            singleOptions.setColorBlind(AppSettings.DEFAULT.colorBlind());
+            keyEditor.restoreDefaults();
+            keyBindings.refreshKeys();
         }
-        singleOptions.setColorBlind(AppSettings.DEFAULT.colorBlind());
-        battleOptions.setColorBlind(AppSettings.DEFAULT.battleColorBlind());
-        keyEditor.restoreDefaults();
-        battleKeyEditor.restoreDefaults();
-        keyBindings.refreshKeys();
-        battleKeyBindings.refreshKeys();
-        // 포트는 기본값으로 되돌리되, 최근 접속 기록은 삭제 버튼으로만 지운다
-        p2pModel.resetPort();
-        p2pSettings.refresh();
+        if (context.shows(Tab.LOCAL_BATTLE)) {
+            battleOptions.setScreenSize(AppSettings.DEFAULT.battleScreenSize());
+            if (context.allowsDifficulty()) {
+                battleOptions.setDifficulty(AppSettings.DEFAULT.battleDifficulty());
+            }
+            battleOptions.setColorBlind(AppSettings.DEFAULT.battleColorBlind());
+            battleKeyEditor.restoreDefaults();
+            battleKeyBindings.refreshKeys();
+        }
+        if (context.shows(Tab.P2P)) {
+            // 포트는 기본값으로 되돌리되, 최근 접속 기록은 삭제 버튼으로만 지운다
+            p2pModel.resetPort();
+            p2pSettings.refresh();
+        }
     }
 
     private void saveSettings() {
         keyBindings.cancelKeyCapture();
         battleKeyBindings.cancelKeyCapture();
-        if (!keyEditor.canSave()) {
+        if (context.shows(Tab.SINGLE) && !keyEditor.canSave()) {
             selectTab(Tab.SINGLE);
             JOptionPane.showMessageDialog(this, "모든 동작에 메인 키가 필요합니다.", "설정", JOptionPane.WARNING_MESSAGE);
             keyBindings.focusMissingMainKey();
             return;
         }
-        if (!battleKeyEditor.canSave()) {
+        if (context.shows(Tab.LOCAL_BATTLE) && !battleKeyEditor.canSave()) {
             selectTab(Tab.LOCAL_BATTLE);
             JOptionPane.showMessageDialog(this, "로컬 대전의 모든 조작 키(1P, 2P 총 10개)가 필요합니다.", "설정", JOptionPane.WARNING_MESSAGE);
             battleKeyBindings.focusMissingKey();
@@ -695,23 +728,28 @@ public final class SettingsPanel extends JPanel {
             return;
         }
         try {
-            keyEditor.save();
-            if (context.allowsKeyEditing()) {
+            boolean single = context.shows(Tab.SINGLE);
+            boolean battle = context.shows(Tab.LOCAL_BATTLE);
+            if (single) {
+                keyEditor.save();
+            }
+            if (battle && context.allowsKeyEditing()) {
                 battleKeyEditor.save();
             }
-            // 게임 중에는 난이도를 보여주지 않으므로 저장된 값을 그대로 유지한다.
-            Difficulty savedDifficulty = context.allowsDifficulty()
+            // 보이지 않는 탭의 설정과, 게임 중에는 보여주지 않는 난이도는 저장된 값을 그대로 유지한다.
+            AppSettings stored = settings.current();
+            Difficulty savedDifficulty = single && context.allowsDifficulty()
                     ? singleOptions.getDifficulty()
-                    : settings.current().difficulty();
-            Difficulty savedBattleDifficulty = context.allowsDifficulty()
+                    : stored.difficulty();
+            Difficulty savedBattleDifficulty = battle && context.allowsDifficulty()
                     ? battleOptions.getDifficulty()
-                    : settings.current().battleDifficulty();
+                    : stored.battleDifficulty();
             settings.save(new AppSettings(
-                    singleOptions.getScreenSize(),
-                    singleOptions.isColorBlind(),
+                    single ? singleOptions.getScreenSize() : stored.screenSize(),
+                    single ? singleOptions.isColorBlind() : stored.colorBlind(),
                     savedDifficulty,
-                    battleOptions.getScreenSize(),
-                    battleOptions.isColorBlind(),
+                    battle ? battleOptions.getScreenSize() : stored.battleScreenSize(),
+                    battle ? battleOptions.isColorBlind() : stored.battleColorBlind(),
                     savedBattleDifficulty));
             if (context.allowsP2PSettings()) {
                 p2pModel.applyPort();

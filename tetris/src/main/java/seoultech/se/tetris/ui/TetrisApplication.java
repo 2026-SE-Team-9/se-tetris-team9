@@ -103,7 +103,8 @@ public final class TetrisApplication implements ScreenNavigator {
         closeGame();
         closeVersusGame();
         closeVersusEnd();
-        versusGame = VersusGameFrame.launch(match, settings.screenSize().scale(), settings.colorBlind(),
+        // 로컬 대전 화면에는 설정의 대전용 화면 크기와 색맹 모드를 쓴다
+        versusGame = VersusGameFrame.launch(match, settings.battleScreenSize().scale(), settings.battleColorBlind(),
                 battleKeys, this::navigateToMenu, result -> navigateToVersusEnd(mode, result));
     }
 

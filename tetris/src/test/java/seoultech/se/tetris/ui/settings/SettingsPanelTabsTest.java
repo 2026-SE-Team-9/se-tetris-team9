@@ -19,11 +19,14 @@ import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import seoultech.se.tetris.config.AppSettings;
+import seoultech.se.tetris.config.AppSettings.ScreenSize;
 import seoultech.se.tetris.config.InMemoryP2PSettingsService;
 import seoultech.se.tetris.config.P2PSettingsService.RecentPeer;
 import seoultech.se.tetris.config.PropertiesAppSettingsService;
 import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
 import seoultech.se.tetris.config.PropertiesKeyConfigService;
+import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.score.CsvScoreRepository;
 import seoultech.se.tetris.ui.settings.SettingsPanel.Tab;
 
@@ -75,18 +78,104 @@ class SettingsPanelTabsTest {
     }
 
     @Test
-    void 게임_중_설정에는_P2P_대전_탭이_없다() throws Exception {
+    void 일인_게임_중_설정에는_일반_모드_설정만_탭_없이_보여준다() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
-            for (SettingsPanel.Context context : new SettingsPanel.Context[] {
-                    SettingsPanel.Context.IN_GAME, SettingsPanel.Context.LOCAL_BATTLE_IN_GAME}) {
-                SettingsPanel panel = panel(context, () -> { });
+            SettingsPanel panel = panel(SettingsPanel.Context.IN_GAME, () -> { });
 
-                assertEquals(List.of(Tab.SINGLE, Tab.LOCAL_BATTLE), panel.availableTabs());
-                assertNull(findButton(panel, "P2P 대전"), context.name());
-                panel.selectTab(Tab.P2P);
-                assertSame(Tab.SINGLE, panel.currentTab());
+            assertEquals(List.of(Tab.SINGLE), panel.availableTabs());
+            assertSame(Tab.SINGLE, panel.currentTab());
+            assertFalse(panel.hasTabBar());
+            for (Tab tab : Tab.values()) {
+                assertNull(findButton(panel, tab.label()), tab.label());
             }
+            panel.selectTab(Tab.LOCAL_BATTLE);
+            panel.selectTab(Tab.P2P);
+            assertSame(Tab.SINGLE, panel.currentTab());
         });
+    }
+
+    @Test
+    void 로컬_대전_중_설정에는_로컬_대전_설정만_탭_없이_보여준다() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            SettingsPanel panel = panel(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME, () -> { });
+
+            assertEquals(List.of(Tab.LOCAL_BATTLE), panel.availableTabs());
+            assertSame(Tab.LOCAL_BATTLE, panel.currentTab());
+            assertFalse(panel.hasTabBar());
+            assertNull(findButton(panel, "일반 모드"));
+            assertNull(findButton(panel, "스코어보드 기록 초기화"));
+            panel.selectTab(Tab.SINGLE);
+            assertSame(Tab.LOCAL_BATTLE, panel.currentTab());
+        });
+    }
+
+    @Test
+    void 탭_안내는_보여주는_탭_이름을_나열한다() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            SettingsPanel panel = panel(SettingsPanel.Context.START_MENU, () -> { });
+
+            assertTrue(panel.hasTabBar());
+            assertEquals("Tab 키 또는 방향키로 일반 모드 / 로컬 대전 / P2P 대전 설정을 전환할 수 있습니다.",
+                    panel.tabHintText());
+        });
+    }
+
+    @Test
+    void 로컬_대전_중_설정을_저장해도_일반_모드_설정은_그대로다() throws Exception {
+        Path file = tempDir.resolve("settings.properties");
+        new PropertiesAppSettingsService(file).save(new AppSettings(
+                ScreenSize.LARGE, true, Difficulty.HARD, ScreenSize.SMALL, false, Difficulty.EASY));
+
+        SwingUtilities.invokeAndWait(() -> {
+            PropertiesAppSettingsService service = new PropertiesAppSettingsService(file);
+            service.load();
+            SettingsPanel panel = new SettingsPanel(service,
+                    new PropertiesKeyConfigService(tempDir.resolve("keys.properties")),
+                    new PropertiesBattleKeyConfigService(tempDir.resolve("battle.properties")),
+                    p2p, new CsvScoreRepository(tempDir.resolve("scores.csv")),
+                    SettingsPanel.Context.LOCAL_BATTLE_IN_GAME, () -> { }, () -> { }, () -> { });
+            // 모든 설정 기본값은 보이는 로컬 대전 설정만 되돌린다
+            findButton(panel, "모든 설정 기본값").doClick();
+            findButton(panel, "저장").doClick();
+        });
+
+        PropertiesAppSettingsService restored = new PropertiesAppSettingsService(file);
+        restored.load();
+        AppSettings saved = restored.current();
+        assertEquals(ScreenSize.LARGE, saved.screenSize());
+        assertTrue(saved.colorBlind());
+        assertEquals(Difficulty.HARD, saved.difficulty());
+        assertEquals(AppSettings.DEFAULT.battleScreenSize(), saved.battleScreenSize());
+        assertEquals(AppSettings.DEFAULT.battleColorBlind(), saved.battleColorBlind());
+        assertEquals(Difficulty.EASY, saved.battleDifficulty());
+    }
+
+    @Test
+    void 일인_게임_중_설정을_저장해도_로컬_대전_설정은_그대로다() throws Exception {
+        Path file = tempDir.resolve("settings.properties");
+        new PropertiesAppSettingsService(file).save(new AppSettings(
+                ScreenSize.SMALL, false, Difficulty.HARD, ScreenSize.LARGE, true, Difficulty.EASY));
+
+        SwingUtilities.invokeAndWait(() -> {
+            PropertiesAppSettingsService service = new PropertiesAppSettingsService(file);
+            service.load();
+            SettingsPanel panel = new SettingsPanel(service,
+                    new PropertiesKeyConfigService(tempDir.resolve("keys.properties")),
+                    new PropertiesBattleKeyConfigService(tempDir.resolve("battle.properties")),
+                    p2p, new CsvScoreRepository(tempDir.resolve("scores.csv")),
+                    SettingsPanel.Context.IN_GAME, () -> { }, () -> { }, () -> { });
+            findButton(panel, "모든 설정 기본값").doClick();
+            findButton(panel, "저장").doClick();
+        });
+
+        PropertiesAppSettingsService restored = new PropertiesAppSettingsService(file);
+        restored.load();
+        AppSettings saved = restored.current();
+        assertEquals(ScreenSize.LARGE, saved.battleScreenSize());
+        assertTrue(saved.battleColorBlind());
+        assertEquals(Difficulty.EASY, saved.battleDifficulty());
+        assertEquals(AppSettings.DEFAULT.screenSize(), saved.screenSize());
+        assertEquals(Difficulty.HARD, saved.difficulty());
     }
 
     @Test

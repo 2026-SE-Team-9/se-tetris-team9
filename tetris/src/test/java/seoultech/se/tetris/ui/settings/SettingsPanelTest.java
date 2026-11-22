@@ -193,9 +193,8 @@ class SettingsPanelTest {
             assertFalse(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsDifficulty());
             assertFalse(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsScoreReset());
 
-            // 대전 모드 탭으로 전환
-            JButton battleTab = (JButton) findButton(panel, "로컬 대전");
-            battleTab.doClick();
+            // 로컬 대전 중 설정은 탭 없이 로컬 대전 설정을 바로 보여준다
+            assertSame(SettingsPanel.Tab.LOCAL_BATTLE, panel.currentTab());
 
             // 대전 키 버튼은 활성화되어 있어야 함
             JButton p1MoveLeft = (JButton) findButton(panel, "A");
