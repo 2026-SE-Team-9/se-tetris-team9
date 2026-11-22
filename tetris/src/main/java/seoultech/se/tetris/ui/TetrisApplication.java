@@ -26,6 +26,8 @@ import seoultech.se.tetris.config.PropertiesKeyConfigService;
 import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.engine.GameMode;
 import seoultech.se.tetris.score.CsvScoreRepository;
+import seoultech.se.tetris.config.InMemoryP2PSettingsService;
+import seoultech.se.tetris.config.P2PSettingsService;
 
 /** 앱 진입점. 시작 메뉴, 게임 화면, 종료 화면을 한 번에 하나만 연다. */
 public final class TetrisApplication implements ScreenNavigator {
@@ -34,6 +36,11 @@ public final class TetrisApplication implements ScreenNavigator {
     private GameFrame game;
     private VersusGameFrame versusGame;
     private EndScreenFrame endScreen;
+    /**
+     * P2P 대전 설정. 파일에 저장하는 구현이 들어오기 전까지는 메모리에만 두므로,
+     * 프로그램을 실행하는 동안에만 유지된다.
+     */
+    private final P2PSettingsService p2pSettings = new InMemoryP2PSettingsService();
     private Difficulty currentDifficulty = Difficulty.DEFAULT;
     private GameMode currentMode = GameMode.NORMAL;
 
@@ -139,7 +146,7 @@ public final class TetrisApplication implements ScreenNavigator {
         keys.load();
         PropertiesBattleKeyConfigService battleKeys = new PropertiesBattleKeyConfigService();
         battleKeys.load();
-        menu.showSettings(new SettingsPanel(settings, keys, battleKeys, new CsvScoreRepository(),
+        menu.showSettings(new SettingsPanel(settings, keys, battleKeys, p2pSettings, new CsvScoreRepository(),
                 SettingsPanel.Context.START_MENU, () -> {}, () -> {}, () -> menu.showMenu()));
     }
 
