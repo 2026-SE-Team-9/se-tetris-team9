@@ -18,10 +18,20 @@ public class VersusScreenModel {
     static final String ENDED_HINT = "Enter / Esc  시작 메뉴로";
 
     private final VersusMode mode;
+    private final CountdownClock clock;
     private MatchResult result;
 
+    /** 남은 시간을 표시하지 않는 화면 */
     public VersusScreenModel(VersusMode mode) {
+        this(mode, null);
+    }
+
+    /**
+     * @param clock 시간제한 모드의 남은 시간. 표시하지 않으면 {@code null}
+     */
+    public VersusScreenModel(VersusMode mode, CountdownClock clock) {
         this.mode = Objects.requireNonNull(mode, "mode");
+        this.clock = clock;
     }
 
     public VersusMode mode() {
@@ -59,13 +69,31 @@ public class VersusScreenModel {
         return result.isWinner(side) ? "승리" : "패배";
     }
 
-    /** 결과 요약. 대전 중이면 빈 문자열이다. 예: "P1 승리 (P2가 더 이상 블럭을 쌓을 수 없음)" */
+    /**
+     * 결과 요약. 대전 중이면 빈 문자열이다.
+     * 예: "P1 승리 (P2가 더 이상 블럭을 쌓을 수 없음)", "P2 승리 (제한 시간 종료 · 500 : 900)"
+     */
     public String resultText() {
         if (result == null) {
             return "";
         }
         String outcome = result.isDraw() ? "무승부" : playerLabel(result.winner()) + " 승리";
         return outcome + " (" + reasonText(result) + ")";
+    }
+
+    /** 남은 시간을 표시하는지. 시간제한 모드에서만 표시한다. */
+    public boolean hasTimer() {
+        return clock != null;
+    }
+
+    /** 표시할 남은 시간. 예: "02:59". 표시하지 않는 화면이면 빈 문자열이다. */
+    public String timerText() {
+        return clock == null ? "" : clock.text();
+    }
+
+    /** 남은 시간을 강조할지. 남은 시간이 얼마 없을 때 강조한다. */
+    public boolean isTimerUrgent() {
+        return clock != null && clock.isUrgent();
     }
 
     /** 현재 사용할 수 있는 키 안내 */
@@ -76,7 +104,7 @@ public class VersusScreenModel {
     private static String reasonText(MatchResult result) {
         return switch (result.reason()) {
             case TOP_OUT -> playerLabel(result.winner().opponent()) + "가 더 이상 블럭을 쌓을 수 없음";
-            case TIME_UP -> "제한 시간 종료";
+            case TIME_UP -> "제한 시간 종료 · " + result.p1Score() + " : " + result.p2Score();
             case FORFEIT -> playerLabel(result.winner().opponent()) + " 기권";
         };
     }
