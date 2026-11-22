@@ -223,6 +223,27 @@ class TetrisEngineVersusTest {
             assertEquals(List.of("XXXXXXX...", "XXXXXXX...", "XXXXXXX..."), textOf(listener.attacks.get(0)));
         }
 
+        @Test
+        @DisplayName("Tall Boy 폭발 뒤 내려온 블럭이 2줄 이상을 채워도, Tall Boy는 사라졌으므로 공격하지 않는다")
+        void tallBoyDoesNotAttack() {
+            int[][] grid = new int[Board.HEIGHT][Board.WIDTH];
+            setRow(grid, 12, "..XXXXX...");   // 폭발 범위 위쪽의 블럭. 2~6열마다 두 칸씩 내려온다
+            setRow(grid, 13, "..XXXXX...");
+            setRow(grid, 15, "....X.....");   // Tall Boy를 받치는 칸 (폭발 범위 안)
+            setRow(grid, 16, "....X.....");
+            setRow(grid, 17, "XX.....XXX");
+            setRow(grid, 18, "XX.....XXX");
+            setRow(grid, 19, "XXXXXXXXX.");   // 내려온 블럭이 멈출 바닥 줄 (꽉 차지 않음)
+            TetrisEngine engine = engineWith(grid);
+
+            lockAt(engine, Block.of(ItemType.TALL_BOY, 14, 3));   // 13행 아래 14행 4열에 끼워 넣는다
+            engine.finishClearing();   // 폭발 → 12~13행의 칸이 17~18행으로 내려와 두 줄이 꽉 찬다
+            engine.finishClearing();   // 이어지는 일반 줄 삭제
+
+            assertEquals(2, engine.getLinesCleared());
+            assertTrue(listener.attacks.isEmpty());
+        }
+
         private boolean occupies(Block block, int row, int col) {
             for (int r = 0; r < BlockType.SIZE; r++) {
                 for (int c = 0; c < BlockType.SIZE; c++) {
