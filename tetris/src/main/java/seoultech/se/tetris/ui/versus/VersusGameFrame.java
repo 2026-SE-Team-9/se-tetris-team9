@@ -9,6 +9,7 @@ import java.util.Objects;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 
 import seoultech.se.tetris.component.controller.GameController;
 import seoultech.se.tetris.component.listener.GameEventListener;
@@ -29,10 +30,16 @@ import seoultech.se.tetris.versus.VersusMatch;
  * <p>각 플레이어의 진행은 1인 모드와 같은 타이머({@link GameProgressTimer}, {@link ClearAnimationTimer})를
  * 플레이어마다 하나씩 두어 처리한다. 타이머는 대전의 조작기를 거쳐 엔진을 움직이므로,
  * 대전이 진행 중이 아닐 때의 입력은 대전 모델이 걸러낸다.
+ *
+ * <p>시간제한 모드에서는 남은 시간({@link TimeLimitWatcher})을 짧은 주기로 확인해 화면에 표시하고,
+ * 시간이 다 되면 대전에 시간 종료를 알린다. 일시정지 중에는 남은 시간도 멈춘다.
  */
 public final class VersusGameFrame extends JFrame {
 
     private static final long serialVersionUID = 1L;
+
+    /** 시간제한 모드에서 남은 시간을 확인하고 다시 그리는 주기(ms). 1초보다 짧게 두어 표시가 늦지 않게 한다. */
+    private static final int CLOCK_TICK_MS = 100;
 
     private final transient VersusMatch match;
     private final transient VersusScreenModel model;
@@ -40,6 +47,10 @@ public final class VersusGameFrame extends JFrame {
     private final transient List<GameProgressTimer> progressTimers = new ArrayList<>();
     private final transient List<ClearAnimationTimer> clearTimers = new ArrayList<>();
     private final transient Runnable onReturnToMenu;
+    /** 시간제한 모드가 아니면 {@code null} */
+    private final transient TimeLimitWatcher timeLimit;
+    /** 시간제한 모드가 아니면 {@code null} */
+    private final Timer clockTimer;
     private boolean released;
 
     private VersusGameFrame(VersusMatch match, double scale, boolean colorBlind,
@@ -47,7 +58,10 @@ public final class VersusGameFrame extends JFrame {
         super("SeoulTech SE Tetris");
         this.match = match;
         this.onReturnToMenu = onReturnToMenu;
-        this.model = new VersusScreenModel(match.mode());
+        this.timeLimit = match.mode().timeLimit()
+                .map(limit -> new TimeLimitWatcher(match, CountdownClock.realTime(limit)))
+                .orElse(null);
+        this.model = new VersusScreenModel(match.mode(), timeLimit == null ? null : timeLimit.clock());
         this.panel = new VersusGamePanel(model,
                 new GamePanel(match.state(Side.P1), scale, colorBlind),
                 new GamePanel(match.state(Side.P2), scale, colorBlind));
@@ -60,6 +74,16 @@ public final class VersusGameFrame extends JFrame {
 
         for (Side side : Side.values()) {
             connectPlayer(side);
+        }
+        if (timeLimit != null) {
+            // 대전 시작(begin) 전에 등록해야 시작 시점부터 잰다
+            match.addListener(timeLimit);
+            clockTimer = new Timer(CLOCK_TICK_MS, event -> {
+                timeLimit.tick();
+                panel.repaintTimer();
+            });
+        } else {
+            clockTimer = null;
         }
         match.addListener(new MatchListener() {
             @Override
@@ -102,6 +126,9 @@ public final class VersusGameFrame extends JFrame {
         frame.panel.requestFocusInWindow();
         match.begin();
         frame.progressTimers.forEach(GameProgressTimer::start);
+        if (frame.clockTimer != null) {
+            frame.clockTimer.start();
+        }
         return frame;
     }
 
@@ -152,6 +179,9 @@ public final class VersusGameFrame extends JFrame {
     private void stopTimers() {
         progressTimers.forEach(GameProgressTimer::stop);
         clearTimers.forEach(ClearAnimationTimer::stop);
+        if (clockTimer != null) {
+            clockTimer.stop();
+        }
     }
 
     /** 타이머를 멈추고 대전을 끝낸다. 여러 번 호출해도 한 번만 처리한다. */

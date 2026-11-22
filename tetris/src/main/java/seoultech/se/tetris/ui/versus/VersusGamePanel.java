@@ -24,6 +24,7 @@ import seoultech.se.tetris.versus.Side;
  *
  * <p>각 보드는 1인 모드와 같은 {@link GamePanel}로 그리므로 블럭·고스트·아이템·줄 삭제 애니메이션이 1인 모드와 같다.
  * 대전 화면에서는 각 보드의 점수 아래에 공격 대기열을 함께 표시한다.
+ * 시간제한 모드에서는 위쪽 줄 오른쪽에 남은 시간을 표시한다.
  */
 public class VersusGamePanel extends JPanel {
 
@@ -32,9 +33,14 @@ public class VersusGamePanel extends JPanel {
     private static final int HEADER_HEIGHT = 76;
     private static final int LABEL_HEIGHT = 30;
     private static final int GAP = 12;
+    /** 남은 시간을 그리는 오른쪽 여백(px) */
+    private static final int TIMER_MARGIN = 24;
+    static final Color TIMER_COLOR = Color.WHITE;
+    static final Color TIMER_URGENT_COLOR = new Color(255, 110, 110);
 
     private final transient VersusScreenModel model;
     private final Map<Side, GamePanel> boards = new EnumMap<>(Side.class);
+    private final Header header = new Header();
 
     public VersusGamePanel(VersusScreenModel model, GamePanel p1Board, GamePanel p2Board) {
         super(new BorderLayout());
@@ -46,7 +52,7 @@ public class VersusGamePanel extends JPanel {
         setBackground(Color.BLACK);
         setFocusable(true);
 
-        add(new Header(), BorderLayout.NORTH);
+        add(header, BorderLayout.NORTH);
         JPanel center = new JPanel(new FlowLayout(FlowLayout.CENTER, GAP, 0));
         center.setBackground(Color.BLACK);
         for (Side side : Side.values()) {
@@ -73,6 +79,11 @@ public class VersusGamePanel extends JPanel {
             boards.get(side).setOverlayText(model.overlayOf(side));
         }
         repaint();
+    }
+
+    /** 남은 시간 표시만 다시 그린다. 시간제한 모드에서 주기적으로 호출한다. */
+    public void repaintTimer() {
+        header.repaint();
     }
 
     private static void drawCentered(Graphics2D g2, String text, int width, int y) {
@@ -108,7 +119,24 @@ public class VersusGamePanel extends JPanel {
             g2.setFont(new Font(Font.DIALOG, Font.PLAIN, 13));
             g2.setColor(Color.GRAY);
             drawCentered(g2, model.hintText(), getWidth(), 72);
+            if (model.hasTimer()) {
+                drawTimer(g2);
+            }
             g2.dispose();
+        }
+
+        /** 오른쪽에 "남은 시간" 이름과 분:초를 오른쪽 정렬로 그린다. 남은 시간이 얼마 없으면 붉게 그린다. */
+        private void drawTimer(Graphics2D g2) {
+            int right = getWidth() - TIMER_MARGIN;
+            g2.setFont(new Font(Font.DIALOG, Font.BOLD, 13));
+            g2.setColor(Color.GRAY);
+            String label = "남은 시간";
+            g2.drawString(label, right - g2.getFontMetrics().stringWidth(label), 22);
+
+            g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, 30));
+            g2.setColor(model.isTimerUrgent() ? TIMER_URGENT_COLOR : TIMER_COLOR);
+            String time = model.timerText();
+            g2.drawString(time, right - g2.getFontMetrics().stringWidth(time), 54);
         }
     }
 

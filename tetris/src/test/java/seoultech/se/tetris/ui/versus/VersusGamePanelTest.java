@@ -1,6 +1,7 @@
 package seoultech.se.tetris.ui.versus;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -8,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
+import java.time.Duration;
 
 import org.junit.jupiter.api.Test;
 
@@ -77,6 +79,49 @@ class VersusGamePanelTest {
         model.matchEnded(MatchResult.draw(EndReason.TIME_UP, 0, 0));
         panel.refresh();
         panel.printAll(image.getGraphics());
+    }
+
+    /** 위쪽 줄 오른쪽(남은 시간 자리)에 주어진 색의 픽셀이 있는지 */
+    private static boolean timerAreaHas(VersusGamePanel target, java.awt.Color color) {
+        Dimension size = target.getPreferredSize();
+        target.setSize(size);
+        target.doLayout();
+        BufferedImage image = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_RGB);
+        target.printAll(image.getGraphics());
+        for (int x = size.width - 160; x < size.width; x++) {
+            for (int y = 0; y < 76; y++) {
+                if (image.getRGB(x, y) == color.getRGB()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private VersusGamePanel timeLimitPanel(long elapsedMillis) {
+        long[] now = {0};
+        CountdownClock clock = new CountdownClock(Duration.ofMinutes(3), () -> now[0]);
+        clock.start();
+        now[0] = elapsedMillis;
+        VersusScreenModel timeModel = new VersusScreenModel(VersusMode.TIME_LIMIT, clock);
+        return new VersusGamePanel(timeModel, new GamePanel(match.state(Side.P1)), new GamePanel(match.state(Side.P2)));
+    }
+
+    @Test
+    void 시간제한_모드에서는_남은_시간을_그린다() {
+        assertTrue(timerAreaHas(timeLimitPanel(0), VersusGamePanel.TIMER_COLOR));
+        assertFalse(timerAreaHas(timeLimitPanel(0), VersusGamePanel.TIMER_URGENT_COLOR));
+    }
+
+    @Test
+    void 남은_시간이_얼마_없으면_붉게_그린다() {
+        assertTrue(timerAreaHas(timeLimitPanel(175_000), VersusGamePanel.TIMER_URGENT_COLOR));
+    }
+
+    @Test
+    void 시간제한이_아니면_남은_시간을_그리지_않는다() {
+        assertFalse(timerAreaHas(panel, VersusGamePanel.TIMER_COLOR));
+        panel.repaintTimer();
     }
 
     @Test

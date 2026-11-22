@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Duration;
+
 import org.junit.jupiter.api.Test;
 
 import seoultech.se.tetris.versus.EndReason;
@@ -69,7 +71,7 @@ class VersusScreenModelTest {
 
         model.matchEnded(MatchResult.win(Side.P2, EndReason.TIME_UP, 500, 900));
 
-        assertEquals("P2 승리 (제한 시간 종료)", model.resultText());
+        assertEquals("P2 승리 (제한 시간 종료 · 500 : 900)", model.resultText());
     }
 
     @Test
@@ -80,7 +82,7 @@ class VersusScreenModelTest {
 
         assertEquals("무승부", model.overlayOf(Side.P1));
         assertEquals("무승부", model.overlayOf(Side.P2));
-        assertEquals("무승부 (제한 시간 종료)", model.resultText());
+        assertEquals("무승부 (제한 시간 종료 · 700 : 700)", model.resultText());
     }
 
     @Test
@@ -103,5 +105,35 @@ class VersusScreenModelTest {
     @Test
     void 모드를_돌려준다() {
         assertEquals(VersusMode.ITEM, new VersusScreenModel(VersusMode.ITEM).mode());
+    }
+
+    // ------------------------------------------------------------------
+    // 남은 시간 (시간제한 모드)
+    // ------------------------------------------------------------------
+
+    @Test
+    void 시계가_없으면_남은_시간을_표시하지_않는다() {
+        VersusScreenModel model = new VersusScreenModel(VersusMode.NORMAL);
+
+        assertFalse(model.hasTimer());
+        assertEquals("", model.timerText());
+        assertFalse(model.isTimerUrgent());
+    }
+
+    @Test
+    void 시계가_있으면_남은_시간과_강조_여부를_표시한다() {
+        long[] now = {0};
+        CountdownClock clock = new CountdownClock(Duration.ofMinutes(3), () -> now[0]);
+        VersusScreenModel model = new VersusScreenModel(VersusMode.TIME_LIMIT, clock);
+
+        assertTrue(model.hasTimer());
+        assertEquals("03:00", model.timerText());
+        assertFalse(model.isTimerUrgent());
+
+        clock.start();
+        now[0] = 175_000;
+
+        assertEquals("00:05", model.timerText());
+        assertTrue(model.isTimerUrgent());
     }
 }
