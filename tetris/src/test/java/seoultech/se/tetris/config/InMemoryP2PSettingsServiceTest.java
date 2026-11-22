@@ -50,6 +50,22 @@ class InMemoryP2PSettingsServiceTest {
     }
 
     @Test
+    void 접속_기록을_추가하고_개별_삭제할_수_있다() {
+        InMemoryP2PSettingsService service = new InMemoryP2PSettingsService();
+        service.addRecentPeer("192.168.0.1", 24700);
+        service.addRecentPeer("192.168.0.2", 24701);
+        service.addRecentPeer("192.168.0.1", 24700);
+
+        assertEquals(
+                List.of(new RecentPeer("192.168.0.1", 24700), new RecentPeer("192.168.0.2", 24701)),
+                service.recentPeers());
+
+        assertTrue(service.removeRecentPeer("192.168.0.2", 24701));
+        assertFalse(service.removeRecentPeer("192.168.0.99", 24700));
+        assertEquals(List.of(new RecentPeer("192.168.0.1", 24700)), service.recentPeers());
+    }
+
+    @Test
     void 돌려준_접속_기록은_바꿀_수_없다() {
         InMemoryP2PSettingsService service = new InMemoryP2PSettingsService(
                 List.of(new RecentPeer("192.168.0.2", 24700)));
@@ -62,6 +78,7 @@ class InMemoryP2PSettingsServiceTest {
     void 접속_기록은_IP와_포트로_표시한다() {
         assertEquals("192.168.0.12:24700", new RecentPeer("192.168.0.12", 24700).text());
         assertThrows(NullPointerException.class, () -> new RecentPeer(null, 24700));
+        assertThrows(IllegalArgumentException.class, () -> new RecentPeer("   ", 24700));
         assertThrows(IllegalArgumentException.class, () -> new RecentPeer("1.2.3.4", 0));
     }
 
