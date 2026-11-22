@@ -5,6 +5,7 @@ import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
@@ -44,6 +45,8 @@ public final class VersusGameFrame extends JFrame {
     private static final int CLOCK_TICK_MS = 100;
     /** 줄 공격 애니메이션을 다시 그리는 주기(ms). 약 30프레임 */
     private static final int EFFECT_TICK_MS = 33;
+    /** 대전이 끝난 뒤 두 보드의 승패를 보여 주는 시간(ms). 이후 대전 종료 화면으로 넘어간다 */
+    static final int RESULT_DELAY_MS = 1500;
 
     private final transient VersusMatch match;
     private final transient VersusScreenModel model;
@@ -54,6 +57,13 @@ public final class VersusGameFrame extends JFrame {
     /** 줄 공격 애니메이션이 진행 중인 동안 보드를 다시 그린다 */
     private final Timer effectTimer;
     private final transient Runnable onReturnToMenu;
+    private final transient Consumer<MatchResult> onMatchFinished;
+    /** 대전이 끝나 승패를 잠시 보여 준 뒤 종료 화면으로 넘어가는 타이머 */
+    private final Timer resultTimer;
+    /** 결과가 정해져 끝났을 때의 결과. 끝나지 않았으면 {@code null} */
+    private transient MatchResult finishedResult;
+    /** 나가기 확인 창이 떠 있는지 */
+    private boolean confirmingQuit;
     /** 시간제한 모드가 아니면 {@code null} */
     private final transient TimeLimitWatcher timeLimit;
     /** 시간제한 모드가 아니면 {@code null} */
@@ -62,10 +72,13 @@ public final class VersusGameFrame extends JFrame {
     private boolean released;
 
     private VersusGameFrame(VersusMatch match, double scale, boolean colorBlind,
-            BattleKeyConfigService keyConfig, Runnable onReturnToMenu) {
+            BattleKeyConfigService keyConfig, Runnable onReturnToMenu, Consumer<MatchResult> onMatchFinished) {
         super("SeoulTech SE Tetris");
         this.match = match;
         this.onReturnToMenu = onReturnToMenu;
+        this.onMatchFinished = onMatchFinished;
+        this.resultTimer = new Timer(RESULT_DELAY_MS, event -> showResult());
+        resultTimer.setRepeats(false);
         this.timeLimit = match.mode().timeLimit()
                 .map(limit -> new TimeLimitWatcher(match, CountdownClock.realTime(limit)))
                 .orElse(null);
@@ -105,13 +118,16 @@ public final class VersusGameFrame extends JFrame {
                 // 한쪽이 끝나면 두 보드를 모두 멈추고 승패를 표시한다. (3차 팀 결정)
                 stopTimers();
                 attackEffects.forEach(AttackEffects::clear);
+                finishedResult = result;
                 model.matchEnded(result);
                 panel.refresh();
+                // 두 보드의 승패를 잠시 보여 준 뒤 대전 종료 화면으로 넘어간다
+                resultTimer.start();
             }
         });
 
         panel.addKeyListener(new VersusKeyInput(new VersusKeyMap(keyConfig), match::controller, model,
-                this::confirmQuit, this::returnToMenu));
+                this::confirmQuit, this::showResult));
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosing(WindowEvent event) { release(); }
             @Override public void windowClosed(WindowEvent event) { release(); }
@@ -124,14 +140,17 @@ public final class VersusGameFrame extends JFrame {
      * @param scale          설정의 화면 크기 배율. 두 보드에 똑같이 적용한다
      * @param colorBlind     설정의 색맹 모드. 두 보드에 똑같이 적용한다
      * @param keyConfig      로컬 대전용 2인 키 설정
-     * @param onReturnToMenu 창을 닫은 뒤 시작 메뉴로 돌아가는 동작
+     * @param onReturnToMenu  대전 도중 나가기로 창을 닫은 뒤 시작 메뉴로 돌아가는 동작
+     * @param onMatchFinished 결과가 정해져 끝난 대전의 창을 닫은 뒤 대전 종료 화면을 여는 동작
      */
     public static VersusGameFrame launch(VersusMatch match, double scale, boolean colorBlind,
-            BattleKeyConfigService keyConfig, Runnable onReturnToMenu) {
+            BattleKeyConfigService keyConfig, Runnable onReturnToMenu, Consumer<MatchResult> onMatchFinished) {
         Objects.requireNonNull(match, "match");
         Objects.requireNonNull(keyConfig, "keyConfig");
         Objects.requireNonNull(onReturnToMenu, "onReturnToMenu");
-        VersusGameFrame frame = new VersusGameFrame(match, scale, colorBlind, keyConfig, onReturnToMenu);
+        Objects.requireNonNull(onMatchFinished, "onMatchFinished");
+        VersusGameFrame frame = new VersusGameFrame(match, scale, colorBlind, keyConfig, onReturnToMenu,
+                onMatchFinished);
         frame.setVisible(true);
         frame.panel.requestFocusInWindow();
         match.begin();
@@ -187,11 +206,20 @@ public final class VersusGameFrame extends JFrame {
     /** 대전 중 Esc. 두 보드를 멈추고 나갈지 묻는다. 나가지 않으면 이어서 진행한다. */
     private void confirmQuit() {
         match.pause();
-        int choice = JOptionPane.showConfirmDialog(this,
-                "현재 대전 진행 상황이 사라집니다. 시작 메뉴로 돌아가시겠습니까?",
-                "대전 나가기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        confirmingQuit = true;
+        int choice;
+        try {
+            choice = JOptionPane.showConfirmDialog(this,
+                    "현재 대전 진행 상황이 사라집니다. 시작 메뉴로 돌아가시겠습니까?",
+                    "대전 나가기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        } finally {
+            confirmingQuit = false;
+        }
         if (choice == JOptionPane.YES_OPTION) {
             returnToMenu();
+        } else if (finishedResult != null) {
+            // 확인 창이 떠 있는 동안 대전이 끝났으면(멈추기 전의 줄 삭제 처리로 끝난 경우) 결과로 넘어간다
+            showResult();
         } else {
             match.resume();
             panel.requestFocusInWindow();
@@ -206,6 +234,18 @@ public final class VersusGameFrame extends JFrame {
         release();
         dispose();
         SwingUtilities.invokeLater(onReturnToMenu);
+    }
+
+    /** 대전을 정리하고 창을 닫은 뒤 대전 종료 화면으로 넘어간다. 결과가 정해지지 않았으면 아무것도 하지 않는다. */
+    private void showResult() {
+        MatchResult result = finishedResult;
+        if (released || result == null || confirmingQuit) {
+            // 나가기 확인 창이 떠 있으면 창이 닫힌 뒤 confirmQuit에서 처리한다
+            return;
+        }
+        release();
+        dispose();
+        SwingUtilities.invokeLater(() -> onMatchFinished.accept(result));
     }
 
     private void stopTimers() {
@@ -224,6 +264,7 @@ public final class VersusGameFrame extends JFrame {
         }
         released = true;
         stopTimers();
+        resultTimer.stop();
         match.quit();
     }
 

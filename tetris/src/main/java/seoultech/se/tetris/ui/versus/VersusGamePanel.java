@@ -33,6 +33,9 @@ public class VersusGamePanel extends JPanel {
     private static final int HEADER_HEIGHT = 76;
     private static final int LABEL_HEIGHT = 30;
     private static final int GAP = 12;
+    /** 플레이어 이름의 색. 대전 화면과 종료 화면이 같은 색을 쓴다 */
+    static final Color P1_COLOR = new Color(255, 120, 120);
+    static final Color P2_COLOR = new Color(120, 170, 255);
     /** 남은 시간을 그리는 오른쪽 여백(px) */
     private static final int TIMER_MARGIN = 24;
     static final Color TIMER_COLOR = Color.WHITE;
@@ -84,6 +87,11 @@ public class VersusGamePanel extends JPanel {
     /** 남은 시간 표시만 다시 그린다. 시간제한 모드에서 주기적으로 호출한다. */
     public void repaintTimer() {
         header.repaint();
+    }
+
+    /** 플레이어 이름의 색 */
+    static Color playerColor(Side side) {
+        return Objects.requireNonNull(side, "side") == Side.P1 ? P1_COLOR : P2_COLOR;
     }
 
     private static void drawCentered(Graphics2D g2, String text, int width, int y) {
@@ -159,7 +167,7 @@ public class VersusGamePanel extends JPanel {
             g2.setColor(Color.BLACK);
             g2.fillRect(0, 0, getWidth(), getHeight());
             g2.setFont(new Font(Font.DIALOG, Font.BOLD, 18));
-            g2.setColor(side == Side.P1 ? new Color(255, 120, 120) : new Color(120, 170, 255));
+            g2.setColor(playerColor(side));
             drawCentered(g2, VersusScreenModel.playerLabel(side), getWidth(), 22);
             g2.dispose();
         }

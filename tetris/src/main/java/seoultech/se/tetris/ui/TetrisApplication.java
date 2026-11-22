@@ -14,9 +14,12 @@ import seoultech.se.tetris.ui.scoreboard.ScoreboardModel;
 import seoultech.se.tetris.ui.scoreboard.ScoreboardPanel;
 import seoultech.se.tetris.ui.settings.SettingsPanel;
 import seoultech.se.tetris.ui.versus.VersusModeSelectModel;
+import seoultech.se.tetris.ui.versus.VersusEndFrame;
+import seoultech.se.tetris.ui.versus.VersusEndModel;
 import seoultech.se.tetris.ui.versus.VersusGameFrame;
 import seoultech.se.tetris.ui.versus.VersusModeSelectPanel;
 import seoultech.se.tetris.versus.LocalMatch;
+import seoultech.se.tetris.versus.MatchResult;
 import seoultech.se.tetris.versus.VersusMatch;
 import seoultech.se.tetris.versus.VersusMode;
 import seoultech.se.tetris.config.AppSettings;
@@ -33,6 +36,7 @@ public final class TetrisApplication implements ScreenNavigator {
     private StartMenuFrame menu;
     private GameFrame game;
     private VersusGameFrame versusGame;
+    private VersusEndFrame versusEnd;
     private EndScreenFrame endScreen;
     private Difficulty currentDifficulty = Difficulty.DEFAULT;
     private GameMode currentMode = GameMode.NORMAL;
@@ -48,6 +52,7 @@ public final class TetrisApplication implements ScreenNavigator {
     public void navigateToMenu() {
         closeGame();
         closeVersusGame();
+        closeVersusEnd();
         closeEndScreen();
         closeMenu();
         menu = new StartMenuFrame(this);
@@ -90,8 +95,9 @@ public final class TetrisApplication implements ScreenNavigator {
         closeEndScreen();
         closeGame();
         closeVersusGame();
+        closeVersusEnd();
         versusGame = VersusGameFrame.launch(match, settings.screenSize().scale(), settings.colorBlind(),
-                battleKeys, this::navigateToMenu);
+                battleKeys, this::navigateToMenu, result -> navigateToVersusEnd(mode, result));
     }
 
     /**
@@ -174,6 +180,23 @@ public final class TetrisApplication implements ScreenNavigator {
     private void closeGame() {
         close(game);
         game = null;
+    }
+
+    /**
+     * 로컬 대전 종료 화면을 연다. 대전 모드는 스코어보드로 기록을 관리하지 않는다.
+     * 게임 다시하기는 같은 모드로 새 대전을 시작하며, 난이도와 키 설정은 그 시점의 설정을 다시 읽는다.
+     */
+    private void navigateToVersusEnd(VersusMode mode, MatchResult result) {
+        closeVersusGame();
+        closeVersusEnd();
+        versusEnd = new VersusEndFrame(new VersusEndModel(mode, result,
+                () -> navigateToVersusGame(mode), this::navigateToMenu));
+        versusEnd.showScreen();
+    }
+
+    private void closeVersusEnd() {
+        close(versusEnd);
+        versusEnd = null;
     }
 
     private void closeVersusGame() {

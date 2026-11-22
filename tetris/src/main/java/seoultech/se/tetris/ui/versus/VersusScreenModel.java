@@ -2,6 +2,7 @@ package seoultech.se.tetris.ui.versus;
 
 import java.util.Objects;
 
+import seoultech.se.tetris.versus.EndReason;
 import seoultech.se.tetris.versus.MatchResult;
 import seoultech.se.tetris.versus.Side;
 import seoultech.se.tetris.versus.VersusMode;
@@ -10,12 +11,12 @@ import seoultech.se.tetris.versus.VersusMode;
  * 로컬 대전 화면에 표시할 문구와 대전 결과. Swing/AWT에 의존하지 않는다.
  *
  * <p>대전 진행 중에는 모드 이름과 조작 안내를, 대전이 끝나면 각 보드의 승패와 결과 요약을 제공한다.
- * 대전 종료 화면은 별도 이슈에서 만들며, 그 전까지는 이 문구로 결과를 임시 표시한다.
+ * 대전이 끝나면 이 화면에서 결과를 잠시 보여 준 뒤 대전 종료 화면({@link VersusEndModel})으로 넘어간다.
  */
 public class VersusScreenModel {
 
     static final String PLAYING_HINT = "Esc  시작 메뉴로";
-    static final String ENDED_HINT = "Enter / Esc  시작 메뉴로";
+    static final String ENDED_HINT = "Enter  결과 화면으로";
 
     private final VersusMode mode;
     private final CountdownClock clock;
@@ -101,11 +102,12 @@ public class VersusScreenModel {
         return isEnded() ? ENDED_HINT : PLAYING_HINT;
     }
 
+    /** 시간 종료는 점수로 승패를 정하므로 두 점수를 함께 보여준다. */
     private static String reasonText(MatchResult result) {
-        return switch (result.reason()) {
-            case TOP_OUT -> playerLabel(result.winner().opponent()) + "가 더 이상 블럭을 쌓을 수 없음";
-            case TIME_UP -> "제한 시간 종료 · " + result.p1Score() + " : " + result.p2Score();
-            case FORFEIT -> playerLabel(result.winner().opponent()) + " 기권";
-        };
+        String reason = VersusEndModel.reasonOf(result);
+        if (result.reason() == EndReason.TIME_UP) {
+            return reason + " · " + result.p1Score() + " : " + result.p2Score();
+        }
+        return reason;
     }
 }
