@@ -204,6 +204,40 @@ class ItemEffectTest {
         }
 
         @Test
+        @DisplayName("L로 지우는 줄이 꽉 찬 줄이기도 하면 일반 줄 삭제가 우선해 배수가 2다")
+        void doublesWhenLineClearRowIsAlsoFull() {
+            Board board = boardWithBottomRows("DXX....XXX");
+            Block block = landed(board, Block.of(BlockType.I, 0, 3).withItem(ItemType.LINE_CLEAR, 1, 0));
+
+            ClearPlan plan = lock(board, block);
+
+            assertEquals(List.of(19), plan.lineRows());
+            assertEquals(2, plan.lineScoreMultiplier());
+        }
+
+        @Test
+        @DisplayName("무게추·Tall Boy·Crusher에 지워지면 가산 없이 다른 칸과 같이 사라진다")
+        void noBonusWhenRemovedByOtherItems() {
+            Board weightBoard = boardWithBottomRows("...D......");
+            ClearPlan weight = lock(weightBoard, landed(weightBoard, Block.of(ItemType.WEIGHT, 0, 3)));
+            assertTrue(cells(weight).contains("19,3"));
+            assertEquals(1, weight.itemScoreCells());          // D도 칸 하나로만 센다
+            assertEquals(1, weight.lineScoreMultiplier());
+
+            Board tallBoyBoard = boardWithBottomRows(".....D....");   // Tall Boy는 4열 바닥에 놓인다
+            ClearPlan tallBoy = lock(tallBoyBoard, landed(tallBoyBoard, Block.of(ItemType.TALL_BOY, 0, 3)));
+            assertTrue(cells(tallBoy).contains("19,5"));
+            assertEquals(2, tallBoy.itemScoreCells());         // D 1칸 + 자기 칸
+            assertEquals(1, tallBoy.lineScoreMultiplier());
+
+            Board crusherBoard = boardWithBottomRows("...D......");
+            ClearPlan crusher = lock(crusherBoard, landed(crusherBoard, Block.of(ItemType.CRUSHER, 0, 3)));
+            assertEquals(List.of(19), crusher.crushedRows());
+            assertEquals(0, crusher.itemScoreCells());
+            assertEquals(1, crusher.lineScoreMultiplier());
+        }
+
+        @Test
         @DisplayName("고정은 일반 블럭과 같고 D 칸이 보드에 남는다")
         void staysOnBoard() {
             Board board = new Board();
