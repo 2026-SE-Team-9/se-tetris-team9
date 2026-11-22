@@ -39,6 +39,9 @@ public final class AttackEffects implements BoardEffects {
     private long insertStart = NONE;
     private int insertedLines;
 
+    private boolean paused;
+    private long pausedAt;
+
     /** @param nowMillis 현재 시각(ms)을 돌려주는 함수. 값은 줄어들지 않아야 한다 */
     public AttackEffects(LongSupplier nowMillis) {
         this.nowMillis = Objects.requireNonNull(nowMillis, "nowMillis");
@@ -85,11 +88,38 @@ public final class AttackEffects implements BoardEffects {
         queueFlashStart = NONE;
     }
 
+    /** 일시정지 시 현재 시각을 고정해 애니메이션 진행을 멈춘다. */
+    public void pause() {
+        if (!paused) {
+            paused = true;
+            pausedAt = nowMillis.getAsLong();
+        }
+    }
+
+    /** 일시정지 동안 흐른 시간만큼 시작 시각을 늦춰 애니메이션을 이어서 진행한다. */
+    public void resume() {
+        if (!paused) {
+            return;
+        }
+        long pausedDuration = nowMillis.getAsLong() - pausedAt;
+        if (popupStart != NONE) {
+            popupStart += pausedDuration;
+        }
+        if (queueFlashStart != NONE) {
+            queueFlashStart += pausedDuration;
+        }
+        if (insertStart != NONE) {
+            insertStart += pausedDuration;
+        }
+        paused = false;
+    }
+
     /** 모든 효과를 끝낸다. 대전이 끝나 화면을 더 이상 다시 그리지 않을 때 쓴다. */
     public void clear() {
         popupStart = NONE;
         queueFlashStart = NONE;
         insertStart = NONE;
+        paused = false;
     }
 
     // ------------------------------------------------------------------
@@ -112,7 +142,7 @@ public final class AttackEffects implements BoardEffects {
         if (!isRunning(queueFlashStart, QUEUE_FLASH_MS) || row < queueFlashFrom || row >= queueFlashTo) {
             return false;
         }
-        long elapsed = nowMillis.getAsLong() - queueFlashStart;
+        long elapsed = currentMillis() - queueFlashStart;
         return (elapsed / QUEUE_BLINK_MS) % 2 == 0;
     }
 
@@ -134,8 +164,12 @@ public final class AttackEffects implements BoardEffects {
                 || isRunning(insertStart, INSERT_MS);
     }
 
+    private long currentMillis() {
+        return paused ? pausedAt : nowMillis.getAsLong();
+    }
+
     private boolean isRunning(long start, long duration) {
-        return start != NONE && nowMillis.getAsLong() - start < duration;
+        return start != NONE && currentMillis() - start < duration;
     }
 
     /** 시작한 뒤 지난 시간의 비율. 시작하지 않았거나 끝났으면 1이다. */
@@ -143,7 +177,7 @@ public final class AttackEffects implements BoardEffects {
         if (start == NONE) {
             return 1.0;
         }
-        long elapsed = nowMillis.getAsLong() - start;
+        long elapsed = currentMillis() - start;
         return Math.min(1.0, Math.max(0.0, (double) elapsed / duration));
     }
 }

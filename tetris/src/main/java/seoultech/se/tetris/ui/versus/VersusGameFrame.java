@@ -2,9 +2,11 @@ package seoultech.se.tetris.ui.versus;
 
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
@@ -14,9 +16,15 @@ import javax.swing.Timer;
 import seoultech.se.tetris.component.controller.GameController;
 import seoultech.se.tetris.component.listener.GameEventListener;
 import seoultech.se.tetris.config.BattleKeyConfigService;
+import seoultech.se.tetris.config.PropertiesAppSettingsService;
+import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
+import seoultech.se.tetris.config.PropertiesKeyConfigService;
+import seoultech.se.tetris.score.CsvScoreRepository;
 import seoultech.se.tetris.ui.game.ClearAnimationTimer;
 import seoultech.se.tetris.ui.game.GamePanel;
 import seoultech.se.tetris.ui.game.GameProgressTimer;
+import seoultech.se.tetris.ui.game.PauseMenuPanel;
+import seoultech.se.tetris.ui.settings.SettingsPanel;
 import seoultech.se.tetris.versus.MatchListener;
 import seoultech.se.tetris.versus.MatchPhase;
 import seoultech.se.tetris.versus.MatchResult;
@@ -54,6 +62,7 @@ public final class VersusGameFrame extends JFrame {
     /** 줄 공격 애니메이션이 진행 중인 동안 보드를 다시 그린다 */
     private final Timer effectTimer;
     private final transient Runnable onReturnToMenu;
+    private final transient Supplier<PropertiesAppSettingsService> settingsFactory;
     /** 시간제한 모드가 아니면 {@code null} */
     private final transient TimeLimitWatcher timeLimit;
     /** 시간제한 모드가 아니면 {@code null} */
@@ -62,10 +71,12 @@ public final class VersusGameFrame extends JFrame {
     private boolean released;
 
     private VersusGameFrame(VersusMatch match, double scale, boolean colorBlind,
-            BattleKeyConfigService keyConfig, Runnable onReturnToMenu) {
+            BattleKeyConfigService keyConfig, Runnable onReturnToMenu,
+            Supplier<PropertiesAppSettingsService> settingsFactory) {
         super("SeoulTech SE Tetris");
         this.match = match;
         this.onReturnToMenu = onReturnToMenu;
+        this.settingsFactory = settingsFactory;
         this.timeLimit = match.mode().timeLimit()
                 .map(limit -> new TimeLimitWatcher(match, CountdownClock.realTime(limit)))
                 .orElse(null);
@@ -110,8 +121,9 @@ public final class VersusGameFrame extends JFrame {
             }
         });
 
+        setGlassPane(new PauseMenuPanel(this::resumeFromPause, this::showSettings, this::confirmReturnToMenu));
         panel.addKeyListener(new VersusKeyInput(new VersusKeyMap(keyConfig), match::controller, model,
-                this::confirmQuit, this::returnToMenu));
+                this::pauseAndShowMenu, this::returnToMenu));
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosing(WindowEvent event) { release(); }
             @Override public void windowClosed(WindowEvent event) { release(); }
@@ -128,10 +140,18 @@ public final class VersusGameFrame extends JFrame {
      */
     public static VersusGameFrame launch(VersusMatch match, double scale, boolean colorBlind,
             BattleKeyConfigService keyConfig, Runnable onReturnToMenu) {
+        return launch(match, scale, colorBlind, keyConfig, onReturnToMenu, PropertiesAppSettingsService::new);
+    }
+
+    static VersusGameFrame launch(VersusMatch match, double scale, boolean colorBlind,
+            BattleKeyConfigService keyConfig, Runnable onReturnToMenu,
+            Supplier<PropertiesAppSettingsService> settingsFactory) {
         Objects.requireNonNull(match, "match");
         Objects.requireNonNull(keyConfig, "keyConfig");
         Objects.requireNonNull(onReturnToMenu, "onReturnToMenu");
-        VersusGameFrame frame = new VersusGameFrame(match, scale, colorBlind, keyConfig, onReturnToMenu);
+        Objects.requireNonNull(settingsFactory, "settingsFactory");
+        VersusGameFrame frame = new VersusGameFrame(match, scale, colorBlind, keyConfig, onReturnToMenu,
+                settingsFactory);
         frame.setVisible(true);
         frame.panel.requestFocusInWindow();
         match.begin();
@@ -184,22 +204,78 @@ public final class VersusGameFrame extends JFrame {
         }
     }
 
-    /** 대전 중 Esc. 두 보드를 멈추고 나갈지 묻는다. 나가지 않으면 이어서 진행한다. */
-    private void confirmQuit() {
+    /** 대전 중 Esc. 두 보드와 모든 타이머를 멈추고 일시정지 메뉴를 표시한다. */
+    void pauseAndShowMenu() {
+        if (released || match.phase() != MatchPhase.PLAYING) {
+            return;
+        }
         match.pause();
+        pauseTimers();
+        panel.repaint();
+        getGlassPane().setVisible(true);
+        getGlassPane().requestFocusInWindow();
+    }
+
+    /** 일시정지 메뉴에서 재개하거나 Esc를 다시 눌렀을 때 대전을 이어서 진행한다. */
+    void resumeFromPause() {
+        if (released || match.phase() != MatchPhase.PAUSED) {
+            return;
+        }
+        getGlassPane().setVisible(false);
+        match.resume();
+        resumeTimers();
+        panel.requestFocusInWindow();
+    }
+
+    /** 일시정지 메뉴에서 설정을 연다. 대전 중에는 키 설정 편집을 제외한다. */
+    void showSettings() {
+        if (released) {
+            return;
+        }
+        PropertiesAppSettingsService settings = settingsFactory.get();
+        loadOrKeep(settings::load);
+        PropertiesKeyConfigService keyConfig = new PropertiesKeyConfigService();
+        loadOrKeep(keyConfig::load);
+        PropertiesBattleKeyConfigService battleKeys = new PropertiesBattleKeyConfigService();
+        loadOrKeep(battleKeys::load);
+
+        SettingsPanel settingsPanel = new SettingsPanel(settings, keyConfig, battleKeys, new CsvScoreRepository(),
+                SettingsPanel.Context.LOCAL_BATTLE_IN_GAME, () -> {}, () -> {}, () -> {
+                    double updatedScale = settings.current().screenSize().scale();
+                    boolean updatedColorBlind = settings.current().colorBlind();
+                    for (Side side : Side.values()) {
+                        panel.board(side).setScale(updatedScale);
+                        panel.board(side).setColorBlind(updatedColorBlind);
+                    }
+                    setContentPane(panel);
+                    pack();
+                    setLocationRelativeTo(null);
+                    getGlassPane().setVisible(true);
+                    getGlassPane().requestFocusInWindow();
+                });
+        getGlassPane().setVisible(false);
+        setContentPane(settingsPanel);
+        pack();
+        setLocationRelativeTo(null);
+    }
+
+    /** 일시정지 메뉴에서 시작 메뉴로를 선택했을 때 나가기 확인 후 복귀한다. */
+    private void confirmReturnToMenu() {
+        if (released) {
+            return;
+        }
         int choice = JOptionPane.showConfirmDialog(this,
                 "현재 대전 진행 상황이 사라집니다. 시작 메뉴로 돌아가시겠습니까?",
                 "대전 나가기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (choice == JOptionPane.YES_OPTION) {
             returnToMenu();
         } else {
-            match.resume();
-            panel.requestFocusInWindow();
+            getGlassPane().requestFocusInWindow();
         }
     }
 
     /** 대전을 정리하고 창을 닫은 뒤 시작 메뉴로 돌아간다. */
-    private void returnToMenu() {
+    void returnToMenu() {
         if (released) {
             return;
         }
@@ -208,12 +284,40 @@ public final class VersusGameFrame extends JFrame {
         SwingUtilities.invokeLater(onReturnToMenu);
     }
 
+    private void pauseTimers() {
+        progressTimers.forEach(GameProgressTimer::stop);
+        clearTimers.forEach(ClearAnimationTimer::pause);
+        attackEffects.forEach(AttackEffects::pause);
+        effectTimer.stop();
+        if (clockTimer != null) {
+            clockTimer.stop();
+        }
+    }
+
+    private void resumeTimers() {
+        progressTimers.forEach(GameProgressTimer::start);
+        clearTimers.forEach(ClearAnimationTimer::resume);
+        attackEffects.forEach(AttackEffects::resume);
+        effectTimer.start();
+        if (clockTimer != null) {
+            clockTimer.start();
+        }
+    }
+
     private void stopTimers() {
         progressTimers.forEach(GameProgressTimer::stop);
         clearTimers.forEach(ClearAnimationTimer::stop);
         effectTimer.stop();
         if (clockTimer != null) {
             clockTimer.stop();
+        }
+    }
+
+    private static void loadOrKeep(Runnable loader) {
+        try {
+            loader.run();
+        } catch (UncheckedIOException e) {
+            // 읽지 못하면 기본 설정으로 계속한다
         }
     }
 
@@ -230,5 +334,13 @@ public final class VersusGameFrame extends JFrame {
     // 테스트에서 창을 띄우지 않고 화면 구성을 확인한다.
     VersusGamePanel panel() {
         return panel;
+    }
+
+    boolean isEffectTimerRunning() {
+        return effectTimer.isRunning();
+    }
+
+    boolean isClockTimerRunning() {
+        return clockTimer != null && clockTimer.isRunning();
     }
 }

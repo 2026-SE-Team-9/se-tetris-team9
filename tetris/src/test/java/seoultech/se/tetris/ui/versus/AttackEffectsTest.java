@@ -149,6 +149,28 @@ class AttackEffectsTest {
     }
 
     @Test
+    void 일시정지_중에는_애니메이션이_진행되지_않고_재개하면_이어서_진행된다() {
+        effects.attackSent(2);
+        effects.attackReceived(0, 2);
+        effects.garbageInserted(1);
+
+        now += 200;
+        effects.pause();
+        double pausedProgress = effects.popupProgress();
+
+        now += 5_000;
+        assertTrue(effects.isActive());
+        assertEquals(pausedProgress, effects.popupProgress(), 1e-9);
+
+        effects.resume();
+        assertTrue(effects.isActive());
+        assertEquals(pausedProgress, effects.popupProgress(), 1e-9);
+
+        now += AttackEffects.POPUP_MS;
+        assertFalse(effects.isActive());
+    }
+
+    @Test
     void 실제_시간_효과도_처음에는_비어_있다() {
         assertFalse(AttackEffects.realTime().isActive());
         assertThrows(NullPointerException.class, () -> new AttackEffects(null));
