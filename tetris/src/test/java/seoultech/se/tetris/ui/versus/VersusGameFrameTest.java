@@ -44,7 +44,7 @@ class VersusGameFrameTest {
                 PropertiesBattleKeyConfigService keys = new PropertiesBattleKeyConfigService(
                         tempDir.resolve("battle-keys.properties"));
                 VersusGameFrame frame = VersusGameFrame.launch(match, 1.0, false, keys,
-                        () -> returned.set(true),
+                        () -> returned.set(true), result -> {},
                         () -> new PropertiesAppSettingsService(tempDir.resolve("settings.properties")));
                 holder[0] = frame;
 
@@ -85,7 +85,7 @@ class VersusGameFrameTest {
                         tempDir.resolve("battle-keys.properties"));
                 Path settingsPath = tempDir.resolve("app-settings.properties");
                 VersusGameFrame frame = VersusGameFrame.launch(match, 1.0, false, keys,
-                        () -> {},
+                        () -> {}, result -> {},
                         () -> new PropertiesAppSettingsService(settingsPath));
                 holder[0] = frame;
 
@@ -126,7 +126,7 @@ class VersusGameFrameTest {
                 PropertiesBattleKeyConfigService keys = new PropertiesBattleKeyConfigService(
                         tempDir.resolve("battle-keys.properties"));
                 VersusGameFrame frame = VersusGameFrame.launch(match, 1.0, false, keys,
-                        () -> returned.set(true),
+                        () -> returned.set(true), result -> {},
                         () -> new PropertiesAppSettingsService(tempDir.resolve("settings.properties")));
                 holder[0] = frame;
 

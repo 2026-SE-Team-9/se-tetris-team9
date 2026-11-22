@@ -35,10 +35,13 @@ import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.plaf.basic.BasicButtonUI;
+import javax.swing.text.JTextComponent;
 import seoultech.se.tetris.config.AppSettings;
 import seoultech.se.tetris.config.AppSettings.ScreenSize;
 import seoultech.se.tetris.config.BattleKeyBindingEditor;
+import seoultech.se.tetris.config.InMemoryP2PSettingsService;
 import seoultech.se.tetris.config.KeyBindingEditor;
+import seoultech.se.tetris.config.P2PSettingsService;
 import seoultech.se.tetris.config.PropertiesAppSettingsService;
 import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
 import seoultech.se.tetris.config.PropertiesKeyConfigService;
@@ -47,6 +50,23 @@ import seoultech.se.tetris.score.ScoreRepository;
 
 /** 시작 메뉴와 일시정지 화면에서 재사용할 수 있는 설정 화면. */
 public final class SettingsPanel extends JPanel {
+    /** 설정 화면 맨 위의 탭 */
+    enum Tab {
+        SINGLE("일반 모드"),
+        LOCAL_BATTLE("로컬 대전"),
+        P2P("P2P 대전");
+
+        private final String label;
+
+        Tab(String label) {
+            this.label = label;
+        }
+
+        String label() {
+            return label;
+        }
+    }
+
     /**
      * 설정 화면을 연 위치.
      *
@@ -55,18 +75,26 @@ public final class SettingsPanel extends JPanel {
      */
     public enum Context {
         /** 시작 메뉴에서 연 설정 */
-        START_MENU(true, true),
+        START_MENU(true, true, true),
         /** 1인 게임 중 일시정지 메뉴에서 연 설정 */
-        IN_GAME(false, true),
+        IN_GAME(false, true, false),
         /** 로컬 대전 게임 중 일시정지 메뉴에서 연 설정 */
-        LOCAL_BATTLE_IN_GAME(false, false);
+        /** 로컬 대전 게임 중 일시정지 메뉴에서 연 설정 */
+        LOCAL_BATTLE_IN_GAME(false, false, false);
 
         private final boolean fullAccess;
         private final boolean allowsKeyEditing;
+        private final boolean allowsP2PSettings;
 
-        Context(boolean fullAccess, boolean allowsKeyEditing) {
+        Context(boolean fullAccess, boolean allowsKeyEditing, boolean allowsP2PSettings) {
             this.fullAccess = fullAccess;
             this.allowsKeyEditing = allowsKeyEditing;
+            this.allowsP2PSettings = allowsP2PSettings;
+        }
+
+        /** P2P 대전 탭은 대전을 시작하기 전인 시작 메뉴의 설정에서만 보여준다. */
+        boolean allowsP2PSettings() {
+            return allowsP2PSettings;
         }
 
         boolean allowsDifficulty() {
@@ -93,6 +121,7 @@ public final class SettingsPanel extends JPanel {
 
     private static final String CARD_SINGLE = "SINGLE";
     private static final String CARD_BATTLE = "BATTLE";
+    private static final String CARD_P2P = "P2P";
 
     private final PropertiesAppSettingsService settings;
     private final KeyBindingEditor keyEditor;
@@ -100,6 +129,8 @@ public final class SettingsPanel extends JPanel {
     private final BattleKeyBindingEditor battleKeyEditor;
     private final BattleKeyBindingsPanel battleKeyBindings;
     private final ScoreRepository scores;
+    private final transient P2PSettingsModel p2pModel;
+    private final P2PSettingsPanel p2pSettings;
     private final Context context;
     private final Runnable onClose;
     private final transient KeyEventDispatcher keyboardDispatcher = this::dispatchKeyboard;
@@ -110,15 +141,16 @@ public final class SettingsPanel extends JPanel {
     private final ModeOptionsPanel battleOptions;
 
     // 최상단 탭 버튼 및 CardLayout 컨테이너
-    private final JButton singleModeTab = new JButton("일반 모드");
-    private final JButton battleModeTab = new JButton("대전 모드");
+    private final JButton singleModeTab = new JButton(Tab.SINGLE.label());
+    private final JButton battleModeTab = new JButton(Tab.LOCAL_BATTLE.label());
+    private final JButton p2pTab = new JButton(Tab.P2P.label());
     private final CardLayout tabCardLayout = new CardLayout();
     private final JPanel tabBodyContainer = new JPanel(tabCardLayout);
     private final JPanel singleModePanel = new JPanel();
     private final JPanel battleModePanel = new JPanel();
 
     private final List<JComponent> actionButtonsRow = new ArrayList<>();
-    private boolean showingBattleKeys = false;
+    private Tab currentTab = Tab.SINGLE;
 
     private final FocusListener scrollOnFocus = new FocusAdapter() {
         @Override
@@ -140,6 +172,17 @@ public final class SettingsPanel extends JPanel {
             PropertiesKeyConfigService keys, PropertiesBattleKeyConfigService battleKeys,
             ScoreRepository scores, Context context,
             Runnable onKeysSaved, Runnable onBattleKeysSaved, Runnable onClose) {
+        this(settings, keys, battleKeys, new InMemoryP2PSettingsService(), scores,
+                context, onKeysSaved, onBattleKeysSaved, onClose);
+    }
+
+    /**
+     * @param p2pSettings P2P 대전 탭에서 보여주고 바꿀 포트와 최근 접속 기록
+     */
+    public SettingsPanel(PropertiesAppSettingsService settings,
+            PropertiesKeyConfigService keys, PropertiesBattleKeyConfigService battleKeys,
+            P2PSettingsService p2pSettings, ScoreRepository scores, Context context,
+            Runnable onKeysSaved, Runnable onBattleKeysSaved, Runnable onClose) {
         super(new BorderLayout());
         this.settings = Objects.requireNonNull(settings, "settings");
         this.keyEditor = new KeyBindingEditor(Objects.requireNonNull(keys, "keys"),
@@ -149,6 +192,8 @@ public final class SettingsPanel extends JPanel {
                 Objects.requireNonNull(onBattleKeysSaved, "onBattleKeysSaved"));
         this.battleKeyBindings = new BattleKeyBindingsPanel(battleKeyEditor);
         this.scores = Objects.requireNonNull(scores, "scores");
+        this.p2pModel = new P2PSettingsModel(Objects.requireNonNull(p2pSettings, "p2pSettings"));
+        this.p2pSettings = new P2PSettingsPanel(p2pModel, this::confirmClearRecentPeers);
         this.context = Objects.requireNonNull(context, "context");
         this.onClose = Objects.requireNonNull(onClose, "onClose");
         this.singleOptions = new ModeOptionsPanel(context.allowsDifficulty());
@@ -160,7 +205,7 @@ public final class SettingsPanel extends JPanel {
 
         buildContent();
         loadCurrentValues();
-        selectTab(false);
+        selectTab(Tab.SINGLE);
     }
 
     @Override
@@ -189,9 +234,9 @@ public final class SettingsPanel extends JPanel {
             return false;
         }
 
-        // Tab 키를 누르면 일반 모드 / 대전 모드 탭을 토글한다.
+        // Tab 키를 누르면 다음 탭으로 넘어간다. 마지막 탭 다음은 첫 탭이다.
         if (event.getKeyCode() == KeyEvent.VK_TAB) {
-            selectTab(!showingBattleKeys);
+            selectTab(nextTab());
             event.consume();
             return true;
         }
@@ -199,6 +244,10 @@ public final class SettingsPanel extends JPanel {
         Component focused = event.getComponent();
         // 펼친 선택 목록에서는 Swing의 방향키 선택과 Esc 닫기를 사용한다.
         if (focused instanceof JComboBox<?> combo && combo.isPopupVisible()) {
+            return false;
+        }
+        // 글자 입력칸에서는 ← →로 커서를 옮긴다.
+        if (leavesKeyToTextField(focused, event.getKeyCode())) {
             return false;
         }
         Component target = navigationTarget(focused, event.getKeyCode());
@@ -261,6 +310,12 @@ public final class SettingsPanel extends JPanel {
         return true;
     }
 
+    /** 글자 입력칸에 있을 때 ← →는 화면 이동에 쓰지 않고 입력칸의 커서 이동에 맡긴다. */
+    static boolean leavesKeyToTextField(Component focused, int keyCode) {
+        return focused instanceof JTextComponent
+                && (keyCode == KeyEvent.VK_LEFT || keyCode == KeyEvent.VK_RIGHT);
+    }
+
     /** 화면의 행과 열을 기준으로 방향키 이동 대상을 찾는다. */
     Component navigationTarget(Component current, int keyCode) {
         for (int row = 0; row < navigationRows.size(); row++) {
@@ -309,20 +364,22 @@ public final class SettingsPanel extends JPanel {
         mainContent.add(title);
         mainContent.add(Box.createVerticalStrut(14));
 
-        // 최상단 탭 바 (일반 모드 / 대전 모드)
+        // 최상단 탭 바 (일반 모드 / 로컬 대전 / P2P 대전)
         JPanel topTabBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         topTabBar.setBackground(BACKGROUND);
         topTabBar.setAlignmentX(Component.LEFT_ALIGNMENT);
-        styleButton(singleModeTab, true);
-        styleButton(battleModeTab, false);
-        singleModeTab.addActionListener(event -> selectTab(false));
-        battleModeTab.addActionListener(event -> selectTab(true));
-        topTabBar.add(singleModeTab);
-        topTabBar.add(battleModeTab);
+        for (Tab tab : availableTabs()) {
+            JButton button = tabButton(tab);
+            styleButton(button, tab == Tab.SINGLE);
+            button.addActionListener(event -> selectTab(tab));
+            topTabBar.add(button);
+        }
         mainContent.add(topTabBar);
         mainContent.add(Box.createVerticalStrut(6));
 
-        JLabel tabHint = label("Tab 키 또는 방향키로 일반/대전 설정을 전환할 수 있습니다.");
+        JLabel tabHint = label(context.allowsP2PSettings()
+                ? "Tab 키 또는 방향키로 일반 / 로컬 대전 / P2P 대전 설정을 전환할 수 있습니다."
+                : "Tab 키 또는 방향키로 일반 / 로컬 대전 설정을 전환할 수 있습니다.");
         tabHint.setFont(new Font(Font.DIALOG, Font.PLAIN, 11));
         tabHint.setForeground(MUTED);
         tabHint.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -337,6 +394,9 @@ public final class SettingsPanel extends JPanel {
         tabBodyContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
         tabBodyContainer.add(singleModePanel, CARD_SINGLE);
         tabBodyContainer.add(battleModePanel, CARD_BATTLE);
+        if (context.allowsP2PSettings()) {
+            tabBodyContainer.add(p2pSettings, CARD_P2P);
+        }
         mainContent.add(tabBodyContainer);
 
         // 하단 안내 라벨
@@ -418,7 +478,7 @@ public final class SettingsPanel extends JPanel {
         singleModePanel.add(Box.createVerticalStrut(12));
     }
 
-    /** 2인 대전 모드 설정 화면 구성 */
+    /** 로컬 대전(2인) 설정 화면 구성 */
     private void buildBattleModePanel() {
         battleModePanel.setLayout(new BoxLayout(battleModePanel, BoxLayout.Y_AXIS));
         battleModePanel.setBackground(BACKGROUND);
@@ -431,7 +491,7 @@ public final class SettingsPanel extends JPanel {
         }
         battleModePanel.add(Box.createVerticalStrut(18));
 
-        JLabel section = label("대전 조작 키 (2인)");
+        JLabel section = label("로컬 대전 조작 키 (2인)");
         section.setForeground(Color.CYAN);
         section.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
         section.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -455,19 +515,61 @@ public final class SettingsPanel extends JPanel {
         battleModePanel.add(Box.createVerticalStrut(12));
     }
 
+    /** 일반 모드 탭 또는 로컬 대전 탭을 고른다. */
     void selectTab(boolean battle) {
+        selectTab(battle ? Tab.LOCAL_BATTLE : Tab.SINGLE);
+    }
+
+    /** 탭을 고른다. 이 설정 화면에서 보여주지 않는 탭이면 무시한다. */
+    void selectTab(Tab tab) {
+        if (!availableTabs().contains(tab)) {
+            return;
+        }
         keyBindings.cancelKeyCapture();
         battleKeyBindings.cancelKeyCapture();
-        showingBattleKeys = battle;
+        currentTab = tab;
 
-        updateTabButtonStyle(singleModeTab, !battle);
-        updateTabButtonStyle(battleModeTab, battle);
+        for (Tab each : availableTabs()) {
+            updateTabButtonStyle(tabButton(each), each == tab);
+        }
 
-        tabCardLayout.show(tabBodyContainer, battle ? CARD_BATTLE : CARD_SINGLE);
+        tabCardLayout.show(tabBodyContainer, switch (tab) {
+            case SINGLE -> CARD_SINGLE;
+            case LOCAL_BATTLE -> CARD_BATTLE;
+            case P2P -> CARD_P2P;
+        });
         tabBodyContainer.revalidate();
         tabBodyContainer.repaint();
 
         rebuildNavigationRows();
+    }
+
+    Tab currentTab() {
+        return currentTab;
+    }
+
+    /** 이 설정 화면에서 보여주는 탭. P2P 대전 탭은 시작 메뉴의 설정에만 있다. */
+    List<Tab> availableTabs() {
+        return context.allowsP2PSettings()
+                ? List.of(Tab.SINGLE, Tab.LOCAL_BATTLE, Tab.P2P)
+                : List.of(Tab.SINGLE, Tab.LOCAL_BATTLE);
+    }
+
+    private Tab nextTab() {
+        List<Tab> tabs = availableTabs();
+        return tabs.get((tabs.indexOf(currentTab) + 1) % tabs.size());
+    }
+
+    private JButton tabButton(Tab tab) {
+        return switch (tab) {
+            case SINGLE -> singleModeTab;
+            case LOCAL_BATTLE -> battleModeTab;
+            case P2P -> p2pTab;
+        };
+    }
+
+    P2PSettingsPanel p2pSettingsPanel() {
+        return p2pSettings;
     }
 
     private static void updateTabButtonStyle(JButton button, boolean active) {
@@ -478,18 +580,22 @@ public final class SettingsPanel extends JPanel {
 
     void rebuildNavigationRows() {
         navigationRows.clear();
-        navigationRows.add(List.of(singleModeTab, battleModeTab));
+        navigationRows.add(availableTabs().stream().map(tab -> (JComponent) tabButton(tab)).toList());
 
-        if (showingBattleKeys) {
-            navigationRows.addAll(battleOptions.navigationRows());
-            if (context.allowsKeyEditing()) {
-                navigationRows.addAll(battleKeyBindings.navigationRows());
+        switch (currentTab) {
+            case SINGLE -> {
+                navigationRows.addAll(singleOptions.navigationRows());
+                if (context.allowsKeyEditing()) {
+                    navigationRows.addAll(keyBindings.navigationRows());
+                }
             }
-        } else {
-            navigationRows.addAll(singleOptions.navigationRows());
-            if (context.allowsKeyEditing()) {
-                navigationRows.addAll(keyBindings.navigationRows());
+            case LOCAL_BATTLE -> {
+                navigationRows.addAll(battleOptions.navigationRows());
+                if (context.allowsKeyEditing()) {
+                    navigationRows.addAll(battleKeyBindings.navigationRows());
+                }
             }
+            case P2P -> navigationRows.addAll(p2pSettings.navigationRows());
         }
 
         navigationRows.add(List.copyOf(actionButtonsRow));
@@ -574,6 +680,9 @@ public final class SettingsPanel extends JPanel {
             keyBindings.refreshKeys();
             battleKeyBindings.refreshKeys();
         }
+        // 포트는 기본값으로 되돌리되, 최근 접속 기록은 삭제 버튼으로만 지운다
+        p2pModel.resetPort();
+        p2pSettings.refresh();
     }
 
     private void saveSettings() {
@@ -581,17 +690,23 @@ public final class SettingsPanel extends JPanel {
         battleKeyBindings.cancelKeyCapture();
         if (context.allowsKeyEditing()) {
             if (!keyEditor.canSave()) {
-                selectTab(false);
+                selectTab(Tab.SINGLE);
                 JOptionPane.showMessageDialog(this, "모든 동작에 메인 키가 필요합니다.", "설정", JOptionPane.WARNING_MESSAGE);
                 keyBindings.focusMissingMainKey();
                 return;
             }
             if (!battleKeyEditor.canSave()) {
-                selectTab(true);
-                JOptionPane.showMessageDialog(this, "대전 모드의 모든 조작 키(1P, 2P 총 10개)가 필요합니다.", "설정", JOptionPane.WARNING_MESSAGE);
+                selectTab(Tab.LOCAL_BATTLE);
+                JOptionPane.showMessageDialog(this, "로컬 대전의 모든 조작 키(1P, 2P 총 10개)가 필요합니다.", "설정", JOptionPane.WARNING_MESSAGE);
                 battleKeyBindings.focusMissingKey();
                 return;
             }
+        }
+        if (context.allowsP2PSettings() && !p2pModel.isPortValid()) {
+            selectTab(Tab.P2P);
+            JOptionPane.showMessageDialog(this, p2pModel.portError(), "설정", JOptionPane.WARNING_MESSAGE);
+            p2pSettings.portField().requestFocusInWindow();
+            return;
         }
         try {
             if (context.allowsKeyEditing()) {
@@ -612,12 +727,22 @@ public final class SettingsPanel extends JPanel {
                     battleOptions.getScreenSize(),
                     battleOptions.isColorBlind(),
                     savedBattleDifficulty));
+            if (context.allowsP2PSettings()) {
+                p2pModel.applyPort();
+            }
             close();
         } catch (RuntimeException e) {
             JOptionPane.showMessageDialog(this,
                     e.getMessage() + "\n키 설정과 다른 설정은 별도 파일이므로 일부가 저장되었을 수 있습니다.",
                     "설정 저장 실패", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    /** 최근 접속 기록을 지우기 전에 묻는다. */
+    private boolean confirmClearRecentPeers() {
+        int choice = JOptionPane.showConfirmDialog(this, "최근 접속 기록을 모두 삭제하시겠습니까?",
+                "최근 접속 IP 삭제", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        return choice == JOptionPane.YES_OPTION;
     }
 
     private void clearScores() {

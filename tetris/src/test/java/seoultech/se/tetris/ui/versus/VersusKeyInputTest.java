@@ -38,7 +38,7 @@ class VersusKeyInputTest {
                 new PropertiesBattleKeyConfigService(dir.resolve("battle_keybindings.properties")));
         model = new VersusScreenModel(VersusMode.NORMAL);
         input = new VersusKeyInput(keyMap, this::controller, model,
-                () -> log.add("quit?"), () -> log.add("menu"));
+                () -> log.add("quit?"), () -> log.add("result"));
     }
 
     private Optional<GameController> controller(Side side) {
@@ -87,13 +87,21 @@ class VersusKeyInputTest {
     }
 
     @Test
-    void 대전이_끝나면_Enter나_Esc로_시작_메뉴로_돌아간다() {
+    void 대전이_끝나면_Enter로_바로_결과_화면으로_넘어간다() {
         model.matchEnded(MatchResult.win(Side.P1, EndReason.TOP_OUT, 100, 0));
 
         press(KeyEvent.VK_ENTER);
+
+        assertEquals(List.of("result"), log);
+    }
+
+    @Test
+    void 대전이_끝나면_Esc는_무시한다() {
+        model.matchEnded(MatchResult.win(Side.P1, EndReason.TOP_OUT, 100, 0));
+
         press(KeyEvent.VK_ESCAPE);
 
-        assertEquals(List.of("menu", "menu"), log);
+        assertTrue(log.isEmpty());
     }
 
     @Test
