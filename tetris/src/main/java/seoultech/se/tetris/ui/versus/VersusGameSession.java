@@ -1,11 +1,13 @@
 package seoultech.se.tetris.ui.versus;
 
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import javax.swing.JRootPane;
@@ -37,6 +39,7 @@ import seoultech.se.tetris.versus.VersusMatch;
 final class VersusGameSession {
 
     private static final int CLOCK_TICK_MS = 100;
+    private static final int COUNTDOWN_TICK_MS = 50;
     private static final int EFFECT_TICK_MS = 33;
     static final int RESULT_DELAY_MS = 1500;
 
@@ -61,6 +64,8 @@ final class VersusGameSession {
     private final Timer resultTimer;
     private final TimeLimitWatcher timeLimit;
     private final Timer clockTimer;
+    private final CountdownClock startCountdownClock;
+    private final Timer countdownTimer;
     private final VersusKeyInput keyInput;
     private final boolean[] effectsWereActive = new boolean[Side.values().length];
     private MatchResult finishedResult;
@@ -71,6 +76,15 @@ final class VersusGameSession {
             BattleKeyConfigService keyConfig, JRootPane rootPane, WindowHost host,
             Runnable onReturnToMenu, Consumer<MatchResult> onMatchFinished,
             Supplier<PropertiesAppSettingsService> settingsFactory) {
+        this(match, scale, colorBlind, keyConfig, rootPane, host, onReturnToMenu, onMatchFinished,
+                settingsFactory, VersusMatch.COUNTDOWN, () -> System.nanoTime() / 1_000_000L);
+    }
+
+    VersusGameSession(VersusMatch match, double scale, boolean colorBlind,
+            BattleKeyConfigService keyConfig, JRootPane rootPane, WindowHost host,
+            Runnable onReturnToMenu, Consumer<MatchResult> onMatchFinished,
+            Supplier<PropertiesAppSettingsService> settingsFactory,
+            Duration countdown, LongSupplier nowMillis) {
         this.match = Objects.requireNonNull(match, "match");
         this.rootPane = Objects.requireNonNull(rootPane, "rootPane");
         this.host = Objects.requireNonNull(host, "host");
@@ -78,6 +92,11 @@ final class VersusGameSession {
         this.onMatchFinished = Objects.requireNonNull(onMatchFinished, "onMatchFinished");
         this.settingsFactory = Objects.requireNonNull(settingsFactory, "settingsFactory");
         Objects.requireNonNull(keyConfig, "keyConfig");
+        Objects.requireNonNull(countdown, "countdown");
+        if (countdown.isNegative()) {
+            throw new IllegalArgumentException("카운트다운은 음수일 수 없습니다: " + countdown);
+        }
+        Objects.requireNonNull(nowMillis, "nowMillis");
 
         this.resultTimer = new Timer(RESULT_DELAY_MS, event -> showResult());
         this.resultTimer.setRepeats(false);
@@ -88,6 +107,13 @@ final class VersusGameSession {
         this.panel = new VersusGamePanel(model,
                 new GamePanel(match.state(Side.P1), scale, colorBlind),
                 new GamePanel(match.state(Side.P2), scale, colorBlind));
+        if (!countdown.isZero()) {
+            this.startCountdownClock = new CountdownClock(countdown, nowMillis);
+            this.countdownTimer = new Timer(COUNTDOWN_TICK_MS, event -> tickCountdown());
+        } else {
+            this.startCountdownClock = null;
+            this.countdownTimer = null;
+        }
 
         rootPane.setContentPane(panel);
 
@@ -123,12 +149,45 @@ final class VersusGameSession {
 
         rootPane.setGlassPane(new PauseMenuPanel(this::resumeFromPause, this::showSettings, this::confirmReturnToMenu));
         this.keyInput = new VersusKeyInput(new VersusKeyMap(keyConfig), match::controller, model,
-                this::pauseAndShowMenu, this::showResult);
+                this::handleEscape, this::showResult);
         panel.addKeyListener(keyInput);
     }
 
     void start() {
         panel.requestFocusInWindow();
+        if (startCountdownClock == null) {
+            beginMatch();
+            return;
+        }
+        startCountdownClock.start();
+        updateCountdownDisplay();
+        countdownTimer.start();
+    }
+
+    void tickCountdown() {
+        if (released || startCountdownClock == null || match.phase() != MatchPhase.READY) {
+            return;
+        }
+        if (startCountdownClock.isExpired()) {
+            startCountdownClock.stop();
+            countdownTimer.stop();
+            model.setCountdownSeconds(0);
+            panel.refresh();
+            beginMatch();
+            return;
+        }
+        updateCountdownDisplay();
+    }
+
+    private void updateCountdownDisplay() {
+        int seconds = (int) ((startCountdownClock.remainingMillis() + 999L) / 1000L);
+        if (seconds != model.countdownSeconds()) {
+            model.setCountdownSeconds(seconds);
+            panel.refresh();
+        }
+    }
+
+    private void beginMatch() {
         match.begin();
         progressTimers.forEach(GameProgressTimer::start);
         effectTimer.start();
@@ -170,6 +229,31 @@ final class VersusGameSession {
             }
             effectsWereActive[side.ordinal()] = active;
         }
+    }
+
+    private void handleEscape() {
+        if (released) {
+            return;
+        }
+        if (match.phase() == MatchPhase.READY) {
+            if (startCountdownClock != null) {
+                startCountdownClock.pause();
+            }
+            if (countdownTimer != null) {
+                countdownTimer.stop();
+            }
+            confirmReturnToMenu();
+            if (!released && match.phase() == MatchPhase.READY) {
+                if (startCountdownClock != null) {
+                    startCountdownClock.start();
+                }
+                if (countdownTimer != null) {
+                    countdownTimer.start();
+                }
+            }
+            return;
+        }
+        pauseAndShowMenu();
     }
 
     void pauseAndShowMenu() {
@@ -238,8 +322,10 @@ final class VersusGameSession {
             returnToMenu();
         } else if (finishedResult != null) {
             showResult();
-        } else {
+        } else if (match.phase() == MatchPhase.PAUSED) {
             rootPane.getGlassPane().requestFocusInWindow();
+        } else {
+            panel.requestFocusInWindow();
         }
     }
 
@@ -283,6 +369,12 @@ final class VersusGameSession {
     }
 
     private void stopTimers() {
+        if (countdownTimer != null) {
+            countdownTimer.stop();
+        }
+        if (startCountdownClock != null) {
+            startCountdownClock.stop();
+        }
         progressTimers.forEach(GameProgressTimer::stop);
         clearTimers.forEach(ClearAnimationTimer::stop);
         effectTimer.stop();
@@ -319,5 +411,9 @@ final class VersusGameSession {
 
     boolean isClockTimerRunning() {
         return clockTimer != null && clockTimer.isRunning();
+    }
+
+    boolean isCountdownTimerRunning() {
+        return countdownTimer != null && countdownTimer.isRunning();
     }
 }

@@ -136,4 +136,34 @@ class VersusScreenModelTest {
         assertEquals("00:05", model.timerText());
         assertTrue(model.isTimerUrgent());
     }
+
+    @Test
+    void 카운트다운_중에는_양쪽_보드에_남은_초를_표시하고_종료되면_사라진다() {
+        VersusScreenModel model = new VersusScreenModel(VersusMode.NORMAL);
+
+        model.setCountdownSeconds(3);
+        assertTrue(model.isCountingDown());
+        assertEquals("3", model.overlayOf(Side.P1));
+        assertEquals("3", model.overlayOf(Side.P2));
+        assertEquals(VersusScreenModel.COUNTDOWN_HINT, model.hintText());
+
+        model.setCountdownSeconds(0);
+        assertFalse(model.isCountingDown());
+        assertNull(model.overlayOf(Side.P1));
+        assertNull(model.overlayOf(Side.P2));
+        assertEquals(VersusScreenModel.PLAYING_HINT, model.hintText());
+    }
+
+    @Test
+    void 대전이_끝나면_카운트다운보다_승패_표시가_우선한다() {
+        VersusScreenModel model = new VersusScreenModel(VersusMode.NORMAL);
+        model.setCountdownSeconds(2);
+
+        model.matchEnded(MatchResult.win(Side.P1, EndReason.FORFEIT, 0, 0));
+
+        assertFalse(model.isCountingDown());
+        assertEquals("승리", model.overlayOf(Side.P1));
+        assertEquals("패배", model.overlayOf(Side.P2));
+        assertEquals(VersusScreenModel.ENDED_HINT, model.hintText());
+    }
 }

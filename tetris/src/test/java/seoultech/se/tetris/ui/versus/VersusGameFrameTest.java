@@ -3,12 +3,14 @@ package seoultech.se.tetris.ui.versus;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.event.KeyEvent;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.JButton;
@@ -53,7 +55,8 @@ class VersusGameFrameTest {
                 JRootPane rootPane = new JRootPane();
                 VersusGameSession session = new VersusGameSession(match, 1.0, false, keys, rootPane,
                         NO_OP_HOST, () -> returned.set(true), result -> {},
-                        () -> new PropertiesAppSettingsService(tempDir.resolve("settings.properties")));
+                        () -> new PropertiesAppSettingsService(tempDir.resolve("settings.properties")),
+                        Duration.ZERO, () -> 0L);
                 holder[0] = session;
                 session.start();
 
@@ -96,7 +99,8 @@ class VersusGameFrameTest {
                 JRootPane rootPane = new JRootPane();
                 VersusGameSession session = new VersusGameSession(match, 1.0, false, keys, rootPane,
                         NO_OP_HOST, () -> {}, result -> {},
-                        () -> new PropertiesAppSettingsService(settingsPath));
+                        () -> new PropertiesAppSettingsService(settingsPath),
+                        Duration.ZERO, () -> 0L);
                 holder[0] = session;
                 session.start();
 
@@ -142,13 +146,108 @@ class VersusGameFrameTest {
                 JRootPane rootPane = new JRootPane();
                 VersusGameSession session = new VersusGameSession(match, 1.0, false, keys, rootPane,
                         NO_OP_HOST, () -> returned.set(true), result -> {},
-                        () -> new PropertiesAppSettingsService(tempDir.resolve("settings.properties")));
+                        () -> new PropertiesAppSettingsService(tempDir.resolve("settings.properties")),
+                        Duration.ZERO, () -> 0L);
                 holder[0] = session;
                 session.start();
 
                 session.returnToMenu();
                 assertEquals(MatchPhase.ENDED, match.phase());
                 assertFalse(session.isEffectTimerRunning());
+            });
+            SwingUtilities.invokeAndWait(() -> assertTrue(returned.get()));
+        } finally {
+            releaseQuietly(holder[0]);
+        }
+    }
+
+    /** 3초 카운트다운 동안 READY를 유지하며 보드 오버레이를 갱신하고, 종료 시 PLAYING으로 전환한다. */
+    @Test
+    void startWithCountdownShowsOverlayAndBeginsAfterDuration() throws Exception {
+        long[] now = {0L};
+        VersusGameSession[] holder = new VersusGameSession[1];
+        LocalMatch match = LocalMatch.create(VersusMode.TIME_LIMIT, Difficulty.DEFAULT, 4L);
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                PropertiesBattleKeyConfigService keys = new PropertiesBattleKeyConfigService(
+                        tempDir.resolve("battle-keys.properties"));
+                JRootPane rootPane = new JRootPane();
+                VersusGameSession session = new VersusGameSession(match, 1.0, false, keys, rootPane,
+                        NO_OP_HOST, () -> {}, result -> {},
+                        () -> new PropertiesAppSettingsService(tempDir.resolve("settings.properties")),
+                        Duration.ofSeconds(3), () -> now[0]);
+                holder[0] = session;
+                session.start();
+
+                assertEquals(MatchPhase.READY, match.phase());
+                assertTrue(session.isCountdownTimerRunning());
+                assertFalse(session.isEffectTimerRunning());
+                assertFalse(session.isClockTimerRunning());
+                assertEquals("3", session.panel().board(seoultech.se.tetris.versus.Side.P1).getOverlayText());
+                assertEquals("3", session.panel().board(seoultech.se.tetris.versus.Side.P2).getOverlayText());
+
+                now[0] = 1_000L;
+                session.tickCountdown();
+                assertEquals("2", session.panel().board(seoultech.se.tetris.versus.Side.P1).getOverlayText());
+                assertEquals(MatchPhase.READY, match.phase());
+
+                now[0] = 2_000L;
+                session.tickCountdown();
+                assertEquals("1", session.panel().board(seoultech.se.tetris.versus.Side.P1).getOverlayText());
+                assertEquals(MatchPhase.READY, match.phase());
+
+                now[0] = 3_000L;
+                session.tickCountdown();
+                assertEquals(MatchPhase.PLAYING, match.phase());
+                assertFalse(session.isCountdownTimerRunning());
+                assertTrue(session.isEffectTimerRunning());
+                assertTrue(session.isClockTimerRunning());
+                assertNull(session.panel().board(seoultech.se.tetris.versus.Side.P1).getOverlayText());
+                assertNull(session.panel().board(seoultech.se.tetris.versus.Side.P2).getOverlayText());
+            });
+        } finally {
+            releaseQuietly(holder[0]);
+        }
+    }
+
+    /** 카운트다운 중 Esc를 누르면 일시정지 대신 나가기 확인을 요청하고, 취소하면 카운트다운을 이어간다. */
+    @Test
+    void escDuringCountdownRequestsQuitConfirmation() throws Exception {
+        AtomicBoolean confirmResult = new AtomicBoolean(false);
+        AtomicBoolean confirmCalled = new AtomicBoolean(false);
+        AtomicBoolean returned = new AtomicBoolean(false);
+        VersusGameSession.WindowHost host = new VersusGameSession.WindowHost() {
+            @Override public void packAndCenter() { }
+            @Override public void disposeWindow() { }
+            @Override public boolean confirmQuit() {
+                confirmCalled.set(true);
+                return confirmResult.get();
+            }
+        };
+        VersusGameSession[] holder = new VersusGameSession[1];
+        LocalMatch match = LocalMatch.create(VersusMode.NORMAL, Difficulty.DEFAULT, 5L);
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                PropertiesBattleKeyConfigService keys = new PropertiesBattleKeyConfigService(
+                        tempDir.resolve("battle-keys.properties"));
+                JRootPane rootPane = new JRootPane();
+                VersusGameSession session = new VersusGameSession(match, 1.0, false, keys, rootPane,
+                        host, () -> returned.set(true), result -> {},
+                        () -> new PropertiesAppSettingsService(tempDir.resolve("settings.properties")),
+                        Duration.ofSeconds(3), () -> 0L);
+                holder[0] = session;
+                session.start();
+
+                pressKey(session.panel(), KeyEvent.VK_ESCAPE);
+                assertTrue(confirmCalled.get());
+                assertEquals(MatchPhase.READY, match.phase());
+                assertFalse(rootPane.getGlassPane().isVisible());
+                assertTrue(session.isCountdownTimerRunning());
+
+                confirmResult.set(true);
+                pressKey(session.panel(), KeyEvent.VK_ESCAPE);
+                assertEquals(MatchPhase.ENDED, match.phase());
+                assertFalse(session.isCountdownTimerRunning());
             });
             SwingUtilities.invokeAndWait(() -> assertTrue(returned.get()));
         } finally {
