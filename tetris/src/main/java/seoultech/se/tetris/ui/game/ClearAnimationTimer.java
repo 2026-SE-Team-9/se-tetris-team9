@@ -24,6 +24,7 @@ public final class ClearAnimationTimer implements GameEventListener {
     public static final int DURATION_MS = 300;
 
     private final Timer timer;
+    private boolean pausedWhileRunning;
 
     public ClearAnimationTimer(GameController controller) {
         Objects.requireNonNull(controller, "controller");
@@ -31,18 +32,37 @@ public final class ClearAnimationTimer implements GameEventListener {
         timer.setRepeats(false);
     }
 
+    /** 일시정지 시 진행 중인 애니메이션 타이머를 멈춘다. */
+    public void pause() {
+        if (timer.isRunning()) {
+            pausedWhileRunning = true;
+            timer.stop();
+        }
+    }
+
+    /** 일시정지 전에 멈춘 애니메이션 타이머가 있었다면 다시 시작한다. */
+    public void resume() {
+        if (pausedWhileRunning) {
+            pausedWhileRunning = false;
+            timer.restart();
+        }
+    }
+
     /** 화면을 닫을 때 타이머를 중지한다. */
     public void stop() {
+        pausedWhileRunning = false;
         timer.stop();
     }
 
     @Override
     public void onClearingStarted() {
+        pausedWhileRunning = false;
         timer.restart();
     }
 
     @Override
     public void onGameOver(int finalScore) {
+        pausedWhileRunning = false;
         timer.stop();
     }
 

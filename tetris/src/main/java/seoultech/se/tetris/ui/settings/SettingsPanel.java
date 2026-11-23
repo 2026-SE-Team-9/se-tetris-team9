@@ -79,6 +79,7 @@ public final class SettingsPanel extends JPanel {
         /** 1인 게임 중 일시정지 메뉴에서 연 설정 */
         IN_GAME(false, true, false),
         /** 로컬 대전 게임 중 일시정지 메뉴에서 연 설정 */
+        /** 로컬 대전 게임 중 일시정지 메뉴에서 연 설정 */
         LOCAL_BATTLE_IN_GAME(false, true, false);
 
         private final boolean fullAccess;
@@ -204,7 +205,7 @@ public final class SettingsPanel extends JPanel {
 
         buildContent();
         loadCurrentValues();
-        selectTab(Tab.SINGLE);
+        selectTab(context == Context.LOCAL_BATTLE_IN_GAME ? Tab.LOCAL_BATTLE : Tab.SINGLE);
     }
 
     @Override
@@ -213,7 +214,7 @@ public final class SettingsPanel extends JPanel {
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(keyboardDispatcher);
         SwingUtilities.invokeLater(() -> {
             if (isShowing()) {
-                singleModeTab.requestFocusInWindow();
+                tabButton(currentTab).requestFocusInWindow();
             }
         });
     }
@@ -447,6 +448,10 @@ public final class SettingsPanel extends JPanel {
         singleModePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         singleModePanel.add(singleOptions);
+        if (!context.allowsKeyEditing()) {
+            singleModePanel.add(Box.createVerticalStrut(12));
+            return;
+        }
         singleModePanel.add(Box.createVerticalStrut(18));
 
         JLabel section = label("1인 조작 키");
@@ -480,6 +485,10 @@ public final class SettingsPanel extends JPanel {
         battleModePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         battleModePanel.add(battleOptions);
+        if (!context.allowsKeyEditing()) {
+            battleModePanel.add(Box.createVerticalStrut(12));
+            return;
+        }
         battleModePanel.add(Box.createVerticalStrut(18));
 
         JLabel section = label("로컬 대전 조작 키 (2인)");
@@ -489,10 +498,7 @@ public final class SettingsPanel extends JPanel {
         battleModePanel.add(section);
         battleModePanel.add(Box.createVerticalStrut(4));
 
-        String hintText = context.allowsKeyEditing()
-                ? "키 칸 선택 후 입력  ·  Esc로 해제"
-                : "대전 중에는 조작 키를 변경할 수 없습니다.";
-        JLabel keyHint = label(hintText);
+        JLabel keyHint = label("키 칸 선택 후 입력  ·  Esc로 해제");
         keyHint.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
         keyHint.setForeground(MUTED);
         keyHint.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -579,11 +585,15 @@ public final class SettingsPanel extends JPanel {
         switch (currentTab) {
             case SINGLE -> {
                 navigationRows.addAll(singleOptions.navigationRows());
-                navigationRows.addAll(keyBindings.navigationRows());
+                if (context.allowsKeyEditing()) {
+                    navigationRows.addAll(keyBindings.navigationRows());
+                }
             }
             case LOCAL_BATTLE -> {
                 navigationRows.addAll(battleOptions.navigationRows());
-                navigationRows.addAll(battleKeyBindings.navigationRows());
+                if (context.allowsKeyEditing()) {
+                    navigationRows.addAll(battleKeyBindings.navigationRows());
+                }
             }
             case P2P -> navigationRows.addAll(p2pSettings.navigationRows());
         }
@@ -664,10 +674,12 @@ public final class SettingsPanel extends JPanel {
         }
         singleOptions.setColorBlind(AppSettings.DEFAULT.colorBlind());
         battleOptions.setColorBlind(AppSettings.DEFAULT.battleColorBlind());
-        keyEditor.restoreDefaults();
-        battleKeyEditor.restoreDefaults();
-        keyBindings.refreshKeys();
-        battleKeyBindings.refreshKeys();
+        if (context.allowsKeyEditing()) {
+            keyEditor.restoreDefaults();
+            battleKeyEditor.restoreDefaults();
+            keyBindings.refreshKeys();
+            battleKeyBindings.refreshKeys();
+        }
         // 포트는 기본값으로 되돌리되, 최근 접속 기록은 삭제 버튼으로만 지운다
         p2pModel.resetPort();
         p2pSettings.refresh();
@@ -676,17 +688,19 @@ public final class SettingsPanel extends JPanel {
     private void saveSettings() {
         keyBindings.cancelKeyCapture();
         battleKeyBindings.cancelKeyCapture();
-        if (!keyEditor.canSave()) {
-            selectTab(Tab.SINGLE);
-            JOptionPane.showMessageDialog(this, "모든 동작에 메인 키가 필요합니다.", "설정", JOptionPane.WARNING_MESSAGE);
-            keyBindings.focusMissingMainKey();
-            return;
-        }
-        if (!battleKeyEditor.canSave()) {
-            selectTab(Tab.LOCAL_BATTLE);
-            JOptionPane.showMessageDialog(this, "로컬 대전의 모든 조작 키(1P, 2P 총 10개)가 필요합니다.", "설정", JOptionPane.WARNING_MESSAGE);
-            battleKeyBindings.focusMissingKey();
-            return;
+        if (context.allowsKeyEditing()) {
+            if (!keyEditor.canSave()) {
+                selectTab(Tab.SINGLE);
+                JOptionPane.showMessageDialog(this, "모든 동작에 메인 키가 필요합니다.", "설정", JOptionPane.WARNING_MESSAGE);
+                keyBindings.focusMissingMainKey();
+                return;
+            }
+            if (!battleKeyEditor.canSave()) {
+                selectTab(Tab.LOCAL_BATTLE);
+                JOptionPane.showMessageDialog(this, "로컬 대전의 모든 조작 키(1P, 2P 총 10개)가 필요합니다.", "설정", JOptionPane.WARNING_MESSAGE);
+                battleKeyBindings.focusMissingKey();
+                return;
+            }
         }
         if (context.allowsP2PSettings() && !p2pModel.isPortValid()) {
             selectTab(Tab.P2P);
@@ -695,8 +709,8 @@ public final class SettingsPanel extends JPanel {
             return;
         }
         try {
-            keyEditor.save();
             if (context.allowsKeyEditing()) {
+                keyEditor.save();
                 battleKeyEditor.save();
             }
             // 게임 중에는 난이도를 보여주지 않으므로 저장된 값을 그대로 유지한다.

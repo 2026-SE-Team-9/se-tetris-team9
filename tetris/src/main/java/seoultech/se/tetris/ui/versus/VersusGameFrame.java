@@ -2,135 +2,62 @@ package seoultech.se.tetris.ui.versus;
 
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
-import javax.swing.SwingUtilities;
-import javax.swing.Timer;
 
-import seoultech.se.tetris.component.controller.GameController;
-import seoultech.se.tetris.component.listener.GameEventListener;
 import seoultech.se.tetris.config.BattleKeyConfigService;
-import seoultech.se.tetris.ui.game.ClearAnimationTimer;
-import seoultech.se.tetris.ui.game.GamePanel;
-import seoultech.se.tetris.ui.game.GameProgressTimer;
-import seoultech.se.tetris.versus.MatchListener;
-import seoultech.se.tetris.versus.MatchPhase;
+import seoultech.se.tetris.config.PropertiesAppSettingsService;
 import seoultech.se.tetris.versus.MatchResult;
-import seoultech.se.tetris.versus.Side;
 import seoultech.se.tetris.versus.VersusMatch;
 
 /**
- * 로컬 대전 창. 대전 모델({@link VersusMatch})과 두 보드 화면, 플레이어별 낙하·줄 삭제 애니메이션 타이머,
- * 2인 키 입력을 연결한다.
- *
- * <p>각 플레이어의 진행은 1인 모드와 같은 타이머({@link GameProgressTimer}, {@link ClearAnimationTimer})를
- * 플레이어마다 하나씩 두어 처리한다. 타이머는 대전의 조작기를 거쳐 엔진을 움직이므로,
- * 대전이 진행 중이 아닐 때의 입력은 대전 모델이 걸러낸다.
- *
- * <p>줄 공격 애니메이션({@link AttackEffects})은 플레이어마다 두고, 진행 중인 동안에만 짧은 주기로 보드를 다시 그린다.
- *
- * <p>시간제한 모드에서는 남은 시간({@link TimeLimitWatcher})을 짧은 주기로 확인해 화면에 표시하고,
- * 시간이 다 되면 대전에 시간 종료를 알린다. 일시정지 중에는 남은 시간도 멈춘다.
+ * 로컬 대전 창. 대전 모델({@link VersusMatch})과 {@link VersusGameSession}을 창에 연결한다.
  */
 public final class VersusGameFrame extends JFrame {
 
     private static final long serialVersionUID = 1L;
 
-    /** 시간제한 모드에서 남은 시간을 확인하고 다시 그리는 주기(ms). 1초보다 짧게 두어 표시가 늦지 않게 한다. */
-    private static final int CLOCK_TICK_MS = 100;
-    /** 줄 공격 애니메이션을 다시 그리는 주기(ms). 약 30프레임 */
-    private static final int EFFECT_TICK_MS = 33;
-    /** 대전이 끝난 뒤 두 보드의 승패를 보여 주는 시간(ms). 이후 대전 종료 화면으로 넘어간다 */
-    static final int RESULT_DELAY_MS = 1500;
+    static final int RESULT_DELAY_MS = VersusGameSession.RESULT_DELAY_MS;
 
-    private final transient VersusMatch match;
-    private final transient VersusScreenModel model;
-    private final VersusGamePanel panel;
-    private final transient List<GameProgressTimer> progressTimers = new ArrayList<>();
-    private final transient List<ClearAnimationTimer> clearTimers = new ArrayList<>();
-    private final transient List<AttackEffects> attackEffects = new ArrayList<>();
-    /** 줄 공격 애니메이션이 진행 중인 동안 보드를 다시 그린다 */
-    private final Timer effectTimer;
-    private final transient Runnable onReturnToMenu;
-    private final transient Consumer<MatchResult> onMatchFinished;
-    /** 대전이 끝나 승패를 잠시 보여 준 뒤 종료 화면으로 넘어가는 타이머 */
-    private final Timer resultTimer;
-    /** 결과가 정해져 끝났을 때의 결과. 끝나지 않았으면 {@code null} */
-    private transient MatchResult finishedResult;
-    /** 나가기 확인 창이 떠 있는지 */
-    private boolean confirmingQuit;
-    /** 시간제한 모드가 아니면 {@code null} */
-    private final transient TimeLimitWatcher timeLimit;
-    /** 시간제한 모드가 아니면 {@code null} */
-    private final Timer clockTimer;
-    private final boolean[] effectsWereActive = new boolean[Side.values().length];
-    private boolean released;
+    private final transient VersusGameSession session;
 
     private VersusGameFrame(VersusMatch match, double scale, boolean colorBlind,
             BattleKeyConfigService keyConfig, Runnable onReturnToMenu, Consumer<MatchResult> onMatchFinished) {
         super("SeoulTech SE Tetris");
-        this.match = match;
-        this.onReturnToMenu = onReturnToMenu;
-        this.onMatchFinished = onMatchFinished;
-        this.resultTimer = new Timer(RESULT_DELAY_MS, event -> showResult());
-        resultTimer.setRepeats(false);
-        this.timeLimit = match.mode().timeLimit()
-                .map(limit -> new TimeLimitWatcher(match, CountdownClock.realTime(limit)))
-                .orElse(null);
-        this.model = new VersusScreenModel(match.mode(), timeLimit == null ? null : timeLimit.clock());
-        this.panel = new VersusGamePanel(model,
-                new GamePanel(match.state(Side.P1), scale, colorBlind),
-                new GamePanel(match.state(Side.P2), scale, colorBlind));
-
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setContentPane(panel);
-        pack();
-        setLocationRelativeTo(null);
         setResizable(false);
 
-        for (Side side : Side.values()) {
-            connectPlayer(side);
-        }
-        effectTimer = new Timer(EFFECT_TICK_MS, event -> repaintEffects());
-        if (timeLimit != null) {
-            // 대전 시작(begin) 전에 등록해야 시작 시점부터 잰다
-            match.addListener(timeLimit);
-            clockTimer = new Timer(CLOCK_TICK_MS, event -> {
-                timeLimit.tick();
-                panel.repaintTimer();
-            });
-        } else {
-            clockTimer = null;
-        }
-        match.addListener(new MatchListener() {
-            @Override
-            public void onPhaseChanged(MatchPhase phase) {
-                panel.repaint();
-            }
+        this.session = new VersusGameSession(match, scale, colorBlind, keyConfig, getRootPane(),
+                new VersusGameSession.WindowHost() {
+                    @Override
+                    public void packAndCenter() {
+                        pack();
+                        setLocationRelativeTo(null);
+                    }
 
-            @Override
-            public void onMatchEnded(MatchResult result) {
-                // 한쪽이 끝나면 두 보드를 모두 멈추고 승패를 표시한다. (3차 팀 결정)
-                stopTimers();
-                attackEffects.forEach(AttackEffects::clear);
-                finishedResult = result;
-                model.matchEnded(result);
-                panel.refresh();
-                // 두 보드의 승패를 잠시 보여 준 뒤 대전 종료 화면으로 넘어간다
-                resultTimer.start();
-            }
-        });
+                    @Override
+                    public void disposeWindow() {
+                        dispose();
+                    }
 
-        panel.addKeyListener(new VersusKeyInput(new VersusKeyMap(keyConfig), match::controller, model,
-                this::confirmQuit, this::showResult));
+                    @Override
+                    public boolean confirmQuit() {
+                        int choice = JOptionPane.showConfirmDialog(VersusGameFrame.this,
+                                "현재 대전 진행 상황이 사라집니다. 시작 메뉴로 돌아가시겠습니까?",
+                                "대전 나가기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+                        return choice == JOptionPane.YES_OPTION;
+                    }
+                },
+                onReturnToMenu, onMatchFinished, PropertiesAppSettingsService::new);
+
+        pack();
+        setLocationRelativeTo(null);
         addWindowListener(new WindowAdapter() {
-            @Override public void windowClosing(WindowEvent event) { release(); }
-            @Override public void windowClosed(WindowEvent event) { release(); }
+            @Override public void windowClosing(WindowEvent event) { session.release(); }
+            @Override public void windowClosed(WindowEvent event) { session.release(); }
         });
     }
 
@@ -152,124 +79,11 @@ public final class VersusGameFrame extends JFrame {
         VersusGameFrame frame = new VersusGameFrame(match, scale, colorBlind, keyConfig, onReturnToMenu,
                 onMatchFinished);
         frame.setVisible(true);
-        frame.panel.requestFocusInWindow();
-        match.begin();
-        frame.progressTimers.forEach(GameProgressTimer::start);
-        frame.effectTimer.start();
-        if (frame.clockTimer != null) {
-            frame.clockTimer.start();
-        }
+        frame.session.start();
         return frame;
     }
 
-    /** 한 플레이어의 보드 다시 그리기, 자동 낙하, 줄 삭제 애니메이션을 연결한다. */
-    private void connectPlayer(Side side) {
-        GameController controller = match.controller(side)
-                .orElseThrow(() -> new IllegalStateException("로컬 대전은 두 플레이어를 모두 조작해야 합니다: " + side));
-        GamePanel board = panel.board(side);
-
-        GameProgressTimer progress = new GameProgressTimer(match.state(side), controller);
-        ClearAnimationTimer clearing = new ClearAnimationTimer(controller);
-        progressTimers.add(progress);
-        clearTimers.add(clearing);
-        match.addGameListener(side, progress);
-        match.addGameListener(side, clearing);
-        match.addGameListener(side, new GameEventListener() {
-            @Override public void onBoardUpdated() { board.repaint(); }
-            @Override public void onLinesCleared(int clearedCount, int gainedScore) { }
-            @Override public void onSpeedIncreased(int currentInterval) { }
-            @Override public void onGameOver(int finalScore) { board.repaint(); }
-        });
-
-        // 줄 공격 애니메이션: 공격을 보내고 받는 것과 대기 줄이 보드에 추가되는 것을 보드에 표시한다
-        AttackEffects effects = AttackEffects.realTime();
-        attackEffects.add(effects);
-        board.setEffects(effects);
-        match.addGameListener(side, new AttackEffectWatcher(match.state(side), effects));
-    }
-
-    /**
-     * 애니메이션이 진행 중인 보드를 다시 그린다. 애니메이션이 끝난 직후에도 한 번 더 그려야 마지막 모습이
-     * 남지 않으므로, 진행 중이었던 보드도 다시 그린다.
-     */
-    private void repaintEffects() {
-        for (Side side : Side.values()) {
-            GamePanel board = panel.board(side);
-            boolean active = board.getEffects().isActive();
-            if (active || effectsWereActive[side.ordinal()]) {
-                board.repaint();
-            }
-            effectsWereActive[side.ordinal()] = active;
-        }
-    }
-
-    /** 대전 중 Esc. 두 보드를 멈추고 나갈지 묻는다. 나가지 않으면 이어서 진행한다. */
-    private void confirmQuit() {
-        match.pause();
-        confirmingQuit = true;
-        int choice;
-        try {
-            choice = JOptionPane.showConfirmDialog(this,
-                    "현재 대전 진행 상황이 사라집니다. 시작 메뉴로 돌아가시겠습니까?",
-                    "대전 나가기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        } finally {
-            confirmingQuit = false;
-        }
-        if (choice == JOptionPane.YES_OPTION) {
-            returnToMenu();
-        } else if (finishedResult != null) {
-            // 확인 창이 떠 있는 동안 대전이 끝났으면(멈추기 전의 줄 삭제 처리로 끝난 경우) 결과로 넘어간다
-            showResult();
-        } else {
-            match.resume();
-            panel.requestFocusInWindow();
-        }
-    }
-
-    /** 대전을 정리하고 창을 닫은 뒤 시작 메뉴로 돌아간다. */
-    private void returnToMenu() {
-        if (released) {
-            return;
-        }
-        release();
-        dispose();
-        SwingUtilities.invokeLater(onReturnToMenu);
-    }
-
-    /** 대전을 정리하고 창을 닫은 뒤 대전 종료 화면으로 넘어간다. 결과가 정해지지 않았으면 아무것도 하지 않는다. */
-    private void showResult() {
-        MatchResult result = finishedResult;
-        if (released || result == null || confirmingQuit) {
-            // 나가기 확인 창이 떠 있으면 창이 닫힌 뒤 confirmQuit에서 처리한다
-            return;
-        }
-        release();
-        dispose();
-        SwingUtilities.invokeLater(() -> onMatchFinished.accept(result));
-    }
-
-    private void stopTimers() {
-        progressTimers.forEach(GameProgressTimer::stop);
-        clearTimers.forEach(ClearAnimationTimer::stop);
-        effectTimer.stop();
-        if (clockTimer != null) {
-            clockTimer.stop();
-        }
-    }
-
-    /** 타이머를 멈추고 대전을 끝낸다. 여러 번 호출해도 한 번만 처리한다. */
-    private void release() {
-        if (released) {
-            return;
-        }
-        released = true;
-        stopTimers();
-        resultTimer.stop();
-        match.quit();
-    }
-
-    // 테스트에서 창을 띄우지 않고 화면 구성을 확인한다.
     VersusGamePanel panel() {
-        return panel;
+        return session.panel();
     }
 }

@@ -75,6 +75,30 @@ class ClearAnimationTimerTest {
         });
     }
 
+    /** 일시정지 시 실행 중이던 타이머만 멈추고, 재개 시 다시 시작한다. */
+    @Test
+    void pausesAndResumesOnlyWhenRunning() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            TetrisEngine engine = new TetrisEngine(alwaysI());
+            ClearAnimationTimer timer = new ClearAnimationTimer(engine);
+            try {
+                timer.pause();
+                timer.resume();
+                assertFalse(timer.isRunning());
+
+                timer.onClearingStarted();
+                assertTrue(timer.isRunning());
+                timer.pause();
+                assertFalse(timer.isRunning());
+
+                timer.resume();
+                assertTrue(timer.isRunning());
+            } finally {
+                timer.stop();
+            }
+        });
+    }
+
     /**
      * I 블럭 네 개로 맨 아래 줄(19행)을 채운다. 마지막 블럭이 고정되면 줄 삭제 애니메이션이 시작된다.
      *

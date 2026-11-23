@@ -83,8 +83,12 @@ class SettingsPanelTabsTest {
 
                 assertEquals(List.of(Tab.SINGLE, Tab.LOCAL_BATTLE), panel.availableTabs());
                 assertNull(findButton(panel, "P2P 대전"), context.name());
+                Tab expectedInitial = context == SettingsPanel.Context.LOCAL_BATTLE_IN_GAME
+                        ? Tab.LOCAL_BATTLE
+                        : Tab.SINGLE;
+                assertSame(expectedInitial, panel.currentTab());
                 panel.selectTab(Tab.P2P);
-                assertSame(Tab.SINGLE, panel.currentTab());
+                assertSame(expectedInitial, panel.currentTab());
             }
         });
     }

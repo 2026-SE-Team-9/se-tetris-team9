@@ -182,24 +182,26 @@ class SettingsPanelTest {
     void localBattleInGameSettingsAllowsBattleKeyEditing() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             Path file = tempDir.resolve("local-battle-ingame.properties");
+            boolean[] closed = {false};
             SettingsPanel panel = new SettingsPanel(new PropertiesAppSettingsService(file),
                     new PropertiesKeyConfigService(tempDir.resolve("keys.props")),
                     new PropertiesBattleKeyConfigService(tempDir.resolve("battle.props")),
                     new CsvScoreRepository(tempDir.resolve("scores.csv")),
                     SettingsPanel.Context.LOCAL_BATTLE_IN_GAME,
-                    () -> {}, () -> {}, () -> {});
+                    () -> {}, () -> {}, () -> closed[0] = true);
 
             assertTrue(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsKeyEditing());
             assertFalse(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsDifficulty());
             assertFalse(SettingsPanel.Context.LOCAL_BATTLE_IN_GAME.allowsScoreReset());
+            assertEquals(SettingsPanel.Tab.LOCAL_BATTLE, panel.currentTab());
 
-            // 대전 모드 탭으로 전환
-            JButton battleTab = (JButton) findButton(panel, "로컬 대전");
-            battleTab.doClick();
-
-            // 대전 키 버튼은 활성화되어 있어야 함
+            // 대전 키 버튼은 처음부터 활성화·표시되어 있어야 함
             JButton p1MoveLeft = (JButton) findButton(panel, "A");
             assertTrue(p1MoveLeft.isEnabled());
+
+            JButton save = (JButton) findButton(panel, "저장");
+            save.doClick();
+            assertTrue(closed[0]);
         });
     }
 

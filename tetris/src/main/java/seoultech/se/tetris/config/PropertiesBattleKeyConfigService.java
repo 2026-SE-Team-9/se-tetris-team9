@@ -58,7 +58,7 @@ public class PropertiesBattleKeyConfigService implements BattleKeyConfigService 
     }
 
     /**
-     * 1P(WASD+Shift)와 2P(방향키+Ctrl)의 기본 키 설정을 반환한다.
+     * 1P(WASD+Shift)와 2P(방향키+End)의 기본 키 설정을 반환한다.
      */
     public static Map<BattleKeySlot, Integer> defaultBindings() {
         Map<BattleKeySlot, Integer> defaults = new HashMap<>();
@@ -69,11 +69,11 @@ public class PropertiesBattleKeyConfigService implements BattleKeyConfigService 
         defaults.put(new BattleKeySlot(BattlePlayer.P1, BattleAction.HARD_DROP), KeyEvent.VK_SHIFT);
         defaults.put(new BattleKeySlot(BattlePlayer.P1, BattleAction.ROTATE), KeyEvent.VK_W);
 
-        // 2P 기본값: ←, →, ↓, Ctrl, ↑
+        // 2P 기본값: ←, →, ↓, End, ↑
         defaults.put(new BattleKeySlot(BattlePlayer.P2, BattleAction.MOVE_LEFT), KeyEvent.VK_LEFT);
         defaults.put(new BattleKeySlot(BattlePlayer.P2, BattleAction.MOVE_RIGHT), KeyEvent.VK_RIGHT);
         defaults.put(new BattleKeySlot(BattlePlayer.P2, BattleAction.SOFT_DROP), KeyEvent.VK_DOWN);
-        defaults.put(new BattleKeySlot(BattlePlayer.P2, BattleAction.HARD_DROP), KeyEvent.VK_CONTROL);
+        defaults.put(new BattleKeySlot(BattlePlayer.P2, BattleAction.HARD_DROP), KeyEvent.VK_END);
         defaults.put(new BattleKeySlot(BattlePlayer.P2, BattleAction.ROTATE), KeyEvent.VK_UP);
 
         return Collections.unmodifiableMap(defaults);
