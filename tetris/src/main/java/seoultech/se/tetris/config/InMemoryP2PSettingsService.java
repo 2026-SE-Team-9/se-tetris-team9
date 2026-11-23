@@ -19,7 +19,7 @@ public final class InMemoryP2PSettingsService implements P2PSettingsService {
 
     /** 최근 접속 기록을 미리 채운다. 최신순으로 넘긴다. 화면 확인과 테스트에 쓴다. */
     public InMemoryP2PSettingsService(List<RecentPeer> recentPeers) {
-        this.recentPeers.addAll(Objects.requireNonNull(recentPeers, "recentPeers"));
+        this.recentPeers.addAll(P2PSettingsService.normalizeRecentPeers(recentPeers));
     }
 
     @Override
@@ -38,6 +38,24 @@ public final class InMemoryP2PSettingsService implements P2PSettingsService {
     @Override
     public List<RecentPeer> recentPeers() {
         return List.copyOf(recentPeers);
+    }
+
+    @Override
+    public void addRecentPeer(RecentPeer peer) {
+        List<RecentPeer> updated = P2PSettingsService.prependRecentPeer(recentPeers, peer);
+        recentPeers.clear();
+        recentPeers.addAll(updated);
+    }
+
+    @Override
+    public boolean removeRecentPeer(RecentPeer peer) {
+        List<RecentPeer> updated = P2PSettingsService.removePeerFromList(recentPeers, peer);
+        if (updated.size() == recentPeers.size()) {
+            return false;
+        }
+        recentPeers.clear();
+        recentPeers.addAll(updated);
+        return true;
     }
 
     @Override
