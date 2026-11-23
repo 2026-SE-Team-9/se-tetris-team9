@@ -15,11 +15,13 @@ import seoultech.se.tetris.versus.VersusMode;
  */
 public class VersusScreenModel {
 
+    static final String COUNTDOWN_HINT = "잠시 후 시작합니다 · Esc 나가기";
     static final String PLAYING_HINT = "Esc  일시정지";
     static final String ENDED_HINT = "Enter  결과 화면으로";
 
     private final VersusMode mode;
     private final CountdownClock clock;
+    private int countdownSeconds;
     private MatchResult result;
 
     /** 남은 시간을 표시하지 않는 화면 */
@@ -49,6 +51,19 @@ public class VersusScreenModel {
         return Objects.requireNonNull(side, "side").name();
     }
 
+    /** 시작 전 카운트다운의 남은 초를 설정한다. 0이면 카운트다운 표시를 끈다. */
+    public void setCountdownSeconds(int seconds) {
+        this.countdownSeconds = Math.max(0, seconds);
+    }
+
+    public int countdownSeconds() {
+        return countdownSeconds;
+    }
+
+    public boolean isCountingDown() {
+        return countdownSeconds > 0 && !isEnded();
+    }
+
     /** 대전이 끝났을 때 결과를 기록한다. */
     public void matchEnded(MatchResult matchResult) {
         result = Objects.requireNonNull(matchResult, "matchResult");
@@ -58,16 +73,16 @@ public class VersusScreenModel {
         return result != null;
     }
 
-    /** 보드 위에 덮어 표시할 승패. 대전 중이면 {@code null}이라 보드의 기본 표시를 쓴다. */
+    /** 보드 위에 덮어 표시할 문구. 종료 시 승패, 카운트다운 중이면 남은 초를 반환하고 진행 중이면 {@code null}이다. */
     public String overlayOf(Side side) {
         Objects.requireNonNull(side, "side");
-        if (result == null) {
-            return null;
+        if (result != null) {
+            if (result.isDraw()) {
+                return "무승부";
+            }
+            return result.isWinner(side) ? "승리" : "패배";
         }
-        if (result.isDraw()) {
-            return "무승부";
-        }
-        return result.isWinner(side) ? "승리" : "패배";
+        return countdownSeconds > 0 ? Integer.toString(countdownSeconds) : null;
     }
 
     /**
@@ -99,7 +114,10 @@ public class VersusScreenModel {
 
     /** 현재 사용할 수 있는 키 안내 */
     public String hintText() {
-        return isEnded() ? ENDED_HINT : PLAYING_HINT;
+        if (isEnded()) {
+            return ENDED_HINT;
+        }
+        return isCountingDown() ? COUNTDOWN_HINT : PLAYING_HINT;
     }
 
     /** 시간 종료는 점수로 승패를 정하므로 두 점수를 함께 보여준다. */
