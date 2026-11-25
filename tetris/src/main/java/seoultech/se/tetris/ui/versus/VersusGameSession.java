@@ -147,7 +147,9 @@ final class VersusGameSession {
             }
         });
 
-        rootPane.setGlassPane(new PauseMenuPanel(this::resumeFromPause, this::showSettings, this::confirmReturnToMenu));
+        // 로컬 대전은 타이틀이 아니라 시작 메뉴로 돌아가므로 마지막 항목 이름을 바꾼다
+        rootPane.setGlassPane(new PauseMenuPanel(this::resumeFromPause, this::showSettings,
+                "시작 메뉴로 돌아가기", this::confirmReturnToMenu));
         this.keyInput = new VersusKeyInput(new VersusKeyMap(keyConfig), match::controller, model,
                 this::handleEscape, this::showResult);
         panel.addKeyListener(keyInput);

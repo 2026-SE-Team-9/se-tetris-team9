@@ -23,12 +23,21 @@ public final class PauseMenuPanel extends JPanel {
     private final transient StartMenuModel model;
     private final transient Runnable resume;
 
+    /** 1인 모드의 일시정지 메뉴. 마지막 항목은 "타이틀로 돌아가기"다. */
     public PauseMenuPanel(Runnable resume, Runnable showSettings, Runnable returnToTitle) {
+        this(resume, showSettings, "타이틀로 돌아가기", returnToTitle);
+    }
+
+    /**
+     * @param leaveLabel 마지막 항목(게임을 그만두고 나가기)의 이름. 예: 로컬 대전은 "시작 메뉴로 돌아가기"
+     * @param leave      마지막 항목을 골랐을 때의 동작
+     */
+    public PauseMenuPanel(Runnable resume, Runnable showSettings, String leaveLabel, Runnable leave) {
         this.resume = Objects.requireNonNull(resume, "resume");
         model = new StartMenuModel(List.of(
                 new MenuItem("재개", resume),
                 new MenuItem("설정", Objects.requireNonNull(showSettings, "showSettings")),
-                new MenuItem("타이틀로 돌아가기", Objects.requireNonNull(returnToTitle, "returnToTitle"))));
+                new MenuItem(Objects.requireNonNull(leaveLabel, "leaveLabel"), Objects.requireNonNull(leave, "leave"))));
         setOpaque(false);
         setFocusable(true);
         addKeyListener(new KeyAdapter() {
@@ -37,6 +46,11 @@ public final class PauseMenuPanel extends JPanel {
                 handleKey(event.getKeyCode());
             }
         });
+    }
+
+    /** 메뉴 항목. 위에서부터 재개, 설정, 나가기 순서다. */
+    public List<MenuItem> getItems() {
+        return model.getItems();
     }
 
     private void handleKey(int keyCode) {

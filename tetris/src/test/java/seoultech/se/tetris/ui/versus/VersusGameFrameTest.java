@@ -70,6 +70,9 @@ class VersusGameFrameTest {
                 assertEquals(MatchPhase.PAUSED, match.phase());
                 assertInstanceOf(PauseMenuPanel.class, rootPane.getGlassPane());
                 assertTrue(rootPane.getGlassPane().isVisible());
+                // 로컬 대전의 마지막 항목은 타이틀이 아니라 시작 메뉴로 돌아간다
+                assertEquals("시작 메뉴로 돌아가기",
+                        ((PauseMenuPanel) rootPane.getGlassPane()).getItems().get(2).label());
                 assertFalse(session.isEffectTimerRunning());
                 assertFalse(session.isClockTimerRunning());
 
