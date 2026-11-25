@@ -20,6 +20,9 @@ import seoultech.se.tetris.config.P2PSettingsService.RecentPeer;
 import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.ui.p2p.P2PScreenState.InputError;
 import seoultech.se.tetris.ui.p2p.P2PScreenState.Screen;
+import seoultech.se.tetris.versus.EndReason;
+import seoultech.se.tetris.versus.MatchResult;
+import seoultech.se.tetris.versus.Side;
 import seoultech.se.tetris.versus.VersusMode;
 import seoultech.se.tetris.versus.p2p.CloseReason;
 import seoultech.se.tetris.versus.p2p.ConnectListener.FailReason;
@@ -49,6 +52,11 @@ class P2PPanelTest {
         Difficulty difficulty = Difficulty.NORMAL;
         ConnectionState connectionState = ConnectionState.NORMAL;
         int roundTripMillis = -1;
+        int roomRow = P2PScreenState.ROOM_ROW_MODE;
+        boolean ready;
+        boolean opponentReady;
+        boolean readyReset;
+        MatchResult lastResult;
 
         @Override public Screen screen() { return screen; }
         @Override public int menuIndex() { return menuIndex; }
@@ -68,6 +76,11 @@ class P2PPanelTest {
         @Override public Difficulty difficulty() { return difficulty; }
         @Override public ConnectionState connectionState() { return connectionState; }
         @Override public int roundTripMillis() { return roundTripMillis; }
+        @Override public int roomRow() { return roomRow; }
+        @Override public boolean isReady() { return ready; }
+        @Override public boolean isOpponentReady() { return opponentReady; }
+        @Override public boolean isReadyReset() { return readyReset; }
+        @Override public MatchResult lastResult() { return lastResult; }
     }
 
     /** 불린 동작을 기록한다. */
@@ -76,6 +89,8 @@ class P2PPanelTest {
 
         @Override public void up() { calls.add("up"); }
         @Override public void down() { calls.add("down"); }
+        @Override public void left() { calls.add("left"); }
+        @Override public void right() { calls.add("right"); }
         @Override public void select() { calls.add("select"); }
         @Override public void back() { calls.add("back"); }
         @Override public void type(char c) { calls.add("type:" + c); }
@@ -121,12 +136,12 @@ class P2PPanelTest {
 
     @Test
     void 화면_이동_키를_동작으로_알린다() {
-        for (int key : new int[] {KeyEvent.VK_UP, KeyEvent.VK_DOWN, KeyEvent.VK_ENTER, KeyEvent.VK_ESCAPE,
-                KeyEvent.VK_BACK_SPACE, KeyEvent.VK_F1}) {
+        for (int key : new int[] {KeyEvent.VK_UP, KeyEvent.VK_DOWN, KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT,
+                KeyEvent.VK_ENTER, KeyEvent.VK_ESCAPE, KeyEvent.VK_BACK_SPACE, KeyEvent.VK_F1}) {
             panel.handleKey(key);
         }
 
-        assertEquals(List.of("up", "down", "select", "back", "erase"), actions.calls);
+        assertEquals(List.of("up", "down", "left", "right", "select", "back", "erase"), actions.calls);
     }
 
     @Test
@@ -214,6 +229,58 @@ class P2PPanelTest {
                 for (ConnectionState connection : ConnectionState.values()) {
                     state.connectionState = connection;
                     state.roundTripMillis = 12;
+                    render();
+                }
+            }
+        });
+    }
+
+    /** 대기실 대전 모드 줄(y 160~198)의 가운데 오른쪽에 노란 픽셀이 있는지. 선택된 줄은 노란 테두리와 글자로 그린다 */
+    private static boolean modeRowHighlighted(BufferedImage image) {
+        for (int x = 170; x < 420; x++) {
+            for (int y = 160; y < 199; y++) {
+                if (image.getRGB(x, y) == P2PPanel.SELECTED.getRGB()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    @Test
+    void 방장은_대기실에서_선택한_설정_줄을_강조한다() {
+        state.screen = Screen.WAITING_ROOM;
+        state.role = Role.SERVER;
+
+        state.roomRow = P2PScreenState.ROOM_ROW_MODE;
+        assertTrue(modeRowHighlighted(render()));
+
+        state.roomRow = P2PScreenState.ROOM_ROW_START;
+        assertTrue(!modeRowHighlighted(render()));
+    }
+
+    @Test
+    void 참여자는_대전_설정을_고를_수_없어_강조하지_않는다() {
+        state.screen = Screen.WAITING_ROOM;
+        state.role = Role.CLIENT;
+        state.roomRow = P2PScreenState.ROOM_ROW_MODE;
+
+        assertTrue(!modeRowHighlighted(render()));
+    }
+
+    @Test
+    void 대기실의_준비_상태와_안내와_지난_결과를_그릴_수_있다() {
+        state.screen = Screen.WAITING_ROOM;
+        assertDoesNotThrow(() -> {
+            for (Role role : Role.values()) {
+                state.role = role;
+                for (int row = 0; row <= P2PScreenState.ROOM_ROW_START; row++) {
+                    state.roomRow = row;
+                    state.ready = row % 2 == 0;
+                    state.opponentReady = row == 1;
+                    state.readyReset = row == 2;
+                    state.lastResult = row == 0 ? null
+                            : MatchResult.win(Side.P2, EndReason.FORFEIT, 100, 300);
                     render();
                 }
             }

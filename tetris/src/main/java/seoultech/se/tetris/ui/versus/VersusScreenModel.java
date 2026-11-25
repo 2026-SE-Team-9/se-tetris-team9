@@ -21,6 +21,7 @@ public class VersusScreenModel {
 
     private final VersusMode mode;
     private final CountdownClock clock;
+    private final VersusPresentation presentation;
     private int countdownSeconds;
     private MatchResult result;
 
@@ -33,17 +34,35 @@ public class VersusScreenModel {
      * @param clock 시간제한 모드의 남은 시간. 표시하지 않으면 {@code null}
      */
     public VersusScreenModel(VersusMode mode, CountdownClock clock) {
+        this(mode, clock, VersusPresentation.LOCAL);
+    }
+
+    /**
+     * @param clock        시간제한 모드의 남은 시간. 표시하지 않으면 {@code null}
+     * @param presentation 제목·이름·보드 순서·안내의 표시 방식. 로컬 대전은 {@link VersusPresentation#LOCAL}
+     */
+    public VersusScreenModel(VersusMode mode, CountdownClock clock, VersusPresentation presentation) {
         this.mode = Objects.requireNonNull(mode, "mode");
         this.clock = clock;
+        this.presentation = Objects.requireNonNull(presentation, "presentation");
+    }
+
+    public VersusPresentation presentation() {
+        return presentation;
+    }
+
+    /** 이 화면에서 보드 위에 표시할 이름. 로컬 대전은 "P1", P2P 대전은 "나 (방장)" 등 */
+    public String labelOf(Side side) {
+        return presentation.labelOf(side);
     }
 
     public VersusMode mode() {
         return mode;
     }
 
-    /** 화면 맨 위 제목. 예: "로컬 대전 · 아이템 모드" */
+    /** 화면 맨 위 제목. 예: "로컬 대전 · 아이템 모드", "P2P 대전 · 일반 모드" */
     public String title() {
-        return "로컬 대전 · " + VersusModeLabels.of(mode);
+        return presentation.titlePrefix() + " · " + VersusModeLabels.of(mode);
     }
 
     /** 각 보드 위에 표시할 플레이어 이름 */
@@ -87,14 +106,43 @@ public class VersusScreenModel {
 
     /**
      * 결과 요약. 대전 중이면 빈 문자열이다.
-     * 예: "P1 승리 (P2가 더 이상 블럭을 쌓을 수 없음)", "P2 승리 (제한 시간 종료 · 500 : 900)"
+     * 예: "P1 승리 (P2가 더 이상 블럭을 쌓을 수 없음)", "P2 승리 (제한 시간 종료 · 500 : 900)".
+     * P2P 대전은 내 관점으로 보여준다. 예: "승리 (상대 기권)"
      */
     public String resultText() {
         if (result == null) {
             return "";
         }
+        if (presentation.mySide() != null) {
+            return perspectiveText(result, presentation.mySide());
+        }
         String outcome = result.isDraw() ? "무승부" : playerLabel(result.winner()) + " 승리";
         return outcome + " (" + reasonText(result) + ")";
+    }
+
+    /**
+     * 내 관점의 결과. 예: "승리 (상대가 더 이상 블럭을 쌓을 수 없음)", "패배 (기권)",
+     * "무승부 (제한 시간 종료 · 나 700 : 상대 700)"
+     *
+     * @param mySide 이 PC의 플레이어 자리
+     */
+    public static String perspectiveText(MatchResult result, Side mySide) {
+        Objects.requireNonNull(result, "result");
+        Objects.requireNonNull(mySide, "mySide");
+        String outcome = result.isDraw() ? "무승부" : result.isWinner(mySide) ? "승리" : "패배";
+        return outcome + " (" + perspectiveReason(result, mySide) + ")";
+    }
+
+    private static String perspectiveReason(MatchResult result, Side mySide) {
+        boolean iLost = !result.isDraw() && !result.isWinner(mySide);
+        return switch (result.reason()) {
+            // P2P에서는 두 플레이어가 상대의 종료 신호를 받기 전에 끝나면(엇갈림) 무승부가 된다 (3차 팀 결정)
+            case TOP_OUT -> result.isDraw() ? "두 플레이어 모두 더 이상 블럭을 쌓을 수 없음"
+                    : iLost ? "더 이상 블럭을 쌓을 수 없음" : "상대가 더 이상 블럭을 쌓을 수 없음";
+            case TIME_UP -> "제한 시간 종료 · 나 " + result.score(mySide)
+                    + " : 상대 " + result.score(mySide.opponent());
+            case FORFEIT -> iLost ? "기권" : "상대 기권";
+        };
     }
 
     /** 남은 시간을 표시하는지. 시간제한 모드에서만 표시한다. */
@@ -115,9 +163,9 @@ public class VersusScreenModel {
     /** 현재 사용할 수 있는 키 안내 */
     public String hintText() {
         if (isEnded()) {
-            return ENDED_HINT;
+            return presentation.endedHint();
         }
-        return isCountingDown() ? COUNTDOWN_HINT : PLAYING_HINT;
+        return isCountingDown() ? presentation.countdownHint() : presentation.playingHint();
     }
 
     /** 시간 종료는 점수로 승패를 정하므로 두 점수를 함께 보여준다. */

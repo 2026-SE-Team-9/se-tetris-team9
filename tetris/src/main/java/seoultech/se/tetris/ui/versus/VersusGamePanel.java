@@ -24,6 +24,7 @@ import seoultech.se.tetris.versus.Side;
  *
  * <p>각 보드는 1인 모드와 같은 {@link GamePanel}로 그리므로 블럭·고스트·아이템·줄 삭제 애니메이션이 1인 모드와 같다.
  * 대전 화면에서는 각 보드의 점수 아래에 공격 대기열을 함께 표시한다.
+ * 제목·플레이어 이름·보드 순서는 {@link VersusPresentation}을 따르므로 P2P 대전 화면에도 그대로 쓴다.
  * 시간제한 모드에서는 위쪽 줄 오른쪽에 남은 시간을 표시한다.
  */
 public class VersusGamePanel extends JPanel {
@@ -58,16 +59,16 @@ public class VersusGamePanel extends JPanel {
         add(header, BorderLayout.NORTH);
         JPanel center = new JPanel(new FlowLayout(FlowLayout.CENTER, GAP, 0));
         center.setBackground(Color.BLACK);
-        for (Side side : Side.values()) {
-            center.add(column(side));
-        }
+        // 로컬 대전은 P1이, P2P 대전은 내 보드가 왼쪽이다
+        center.add(column(model.presentation().leftSide()));
+        center.add(column(model.presentation().rightSide()));
         add(center, BorderLayout.CENTER);
     }
 
     private JPanel column(Side side) {
         JPanel column = new JPanel(new BorderLayout());
         column.setBackground(Color.BLACK);
-        column.add(new PlayerLabel(side), BorderLayout.NORTH);
+        column.add(new PlayerLabel(side, model.labelOf(side)), BorderLayout.NORTH);
         column.add(boards.get(side), BorderLayout.CENTER);
         return column;
     }
@@ -154,9 +155,11 @@ public class VersusGamePanel extends JPanel {
         private static final long serialVersionUID = 1L;
 
         private final Side side;
+        private final String label;
 
-        PlayerLabel(Side side) {
+        PlayerLabel(Side side, String label) {
             this.side = side;
+            this.label = label;
             setPreferredSize(new Dimension(0, LABEL_HEIGHT));
         }
 
@@ -168,7 +171,7 @@ public class VersusGamePanel extends JPanel {
             g2.fillRect(0, 0, getWidth(), getHeight());
             g2.setFont(new Font(Font.DIALOG, Font.BOLD, 18));
             g2.setColor(playerColor(side));
-            drawCentered(g2, VersusScreenModel.playerLabel(side), getWidth(), 22);
+            drawCentered(g2, label, getWidth(), 22);
             g2.dispose();
         }
     }

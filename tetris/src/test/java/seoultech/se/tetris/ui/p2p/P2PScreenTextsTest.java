@@ -11,6 +11,9 @@ import org.junit.jupiter.api.Test;
 
 import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.ui.p2p.P2PScreenState.InputError;
+import seoultech.se.tetris.versus.EndReason;
+import seoultech.se.tetris.versus.MatchResult;
+import seoultech.se.tetris.versus.Side;
 import seoultech.se.tetris.versus.VersusMode;
 import seoultech.se.tetris.versus.p2p.CloseReason;
 import seoultech.se.tetris.versus.p2p.ConnectListener.FailReason;
@@ -76,6 +79,42 @@ class P2PScreenTextsTest {
         assertEquals("방장 (서버)", P2PScreenTexts.role(Role.SERVER));
         assertEquals("참여자 (클라이언트)", P2PScreenTexts.role(Role.CLIENT));
         assertEquals("시간제한 모드 · 어려움", P2PScreenTexts.settings(VersusMode.TIME_LIMIT, Difficulty.HARD));
+    }
+
+    @Test
+    void 대기실의_준비_상태와_게임_시작_버튼을_나타낸다() {
+        assertEquals("준비 완료", P2PScreenTexts.readyStatus(true));
+        assertEquals("대기 중", P2PScreenTexts.readyStatus(false));
+        assertEquals("게임 시작", P2PScreenTexts.startButton(false));
+        assertEquals("준비 취소", P2PScreenTexts.startButton(true));
+    }
+
+    @Test
+    void 방장이_바꿀_수_있는_설정은_양옆에_화살표를_붙인다() {
+        assertEquals("◀  일반 모드  ▶", P2PScreenTexts.choice("일반 모드", true));
+        assertEquals("일반 모드", P2PScreenTexts.choice("일반 모드", false));
+    }
+
+    @Test
+    void 대기실_키_안내는_역할마다_다르다() {
+        assertTrue(P2PScreenTexts.roomHint(Role.SERVER).contains("← → 변경"));
+        assertFalse(P2PScreenTexts.roomHint(Role.CLIENT).contains("변경"));
+    }
+
+    @Test
+    void 지난_대전_결과는_내_관점으로_보여준다() {
+        MatchResult serverWon = MatchResult.win(Side.P1, EndReason.TOP_OUT, 900, 400);
+
+        assertEquals("지난 대전: 승리 (상대가 더 이상 블럭을 쌓을 수 없음)",
+                P2PScreenTexts.lastResult(serverWon, Role.SERVER));
+        assertEquals("지난 대전: 패배 (더 이상 블럭을 쌓을 수 없음)",
+                P2PScreenTexts.lastResult(serverWon, Role.CLIENT));
+    }
+
+    @Test
+    void 게임_나가기_메뉴는_계속하기와_나가기이고_게임이_멈추지_않는다고_알린다() {
+        assertEquals(List.of("계속하기", "게임 나가기 (기권패)"), P2PScreenTexts.EXIT_ITEMS);
+        assertTrue(P2PScreenTexts.EXIT_NOTE.contains("계속 진행"));
     }
 
     @Test

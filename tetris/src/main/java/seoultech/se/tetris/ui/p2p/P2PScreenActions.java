@@ -11,7 +11,8 @@ package seoultech.se.tetris.ui.p2p;
  *   <li>첫 화면: "↑ ↓ 이동   Enter 선택   Esc 뒤로"</li>
  *   <li>방 생성: "Esc 취소". 실패 안내가 있으면 "Enter 다시 시도   Esc 취소"</li>
  *   <li>참여: "↑ ↓ 이동   Enter 접속·선택   Esc 뒤로". 접속 중이면 "Esc 접속 취소"</li>
- *   <li>대기실: "Esc 나가기 (연결을 끊고 첫 화면으로)"</li>
+ *   <li>대기실(방장): "↑ ↓ 이동   ← → 변경   Enter 선택   Esc 나가기"</li>
+ *   <li>대기실(참여자): "Enter 게임 시작·취소   Esc 나가기"</li>
  * </ul>
  */
 public interface P2PScreenActions {
@@ -21,6 +22,12 @@ public interface P2PScreenActions {
 
     /** ↓ */
     void down();
+
+    /** ← . 대기실에서 방장이 모드·난이도를 바꿀 때 쓴다 */
+    void left();
+
+    /** → . 대기실에서 방장이 모드·난이도를 바꿀 때 쓴다 */
+    void right();
 
     /** Enter */
     void select();
