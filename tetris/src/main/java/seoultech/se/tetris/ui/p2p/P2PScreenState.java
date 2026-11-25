@@ -4,7 +4,6 @@ import java.util.List;
 
 import seoultech.se.tetris.config.P2PSettingsService.RecentPeer;
 import seoultech.se.tetris.engine.Difficulty;
-import seoultech.se.tetris.versus.MatchResult;
 import seoultech.se.tetris.versus.VersusMode;
 import seoultech.se.tetris.versus.p2p.CloseReason;
 import seoultech.se.tetris.versus.p2p.ConnectListener.FailReason;
@@ -109,12 +108,6 @@ public interface P2PScreenState {
 
     /** 상대가 '게임 시작'을 눌렀는지 */
     boolean isOpponentReady();
-
-    /** 방장이 대전 설정을 바꿔 준비가 풀렸음을 알릴지 */
-    boolean isReadyReset();
-
-    /** 지난 대전의 결과. 대기실에 처음 들어왔으면 {@code null} */
-    MatchResult lastResult();
 
     Role role();
 

@@ -18,7 +18,6 @@ import javax.swing.JPanel;
 import seoultech.se.tetris.config.P2PSettingsService.RecentPeer;
 import seoultech.se.tetris.ui.DifficultyLabels;
 import seoultech.se.tetris.ui.versus.VersusModeLabels;
-import seoultech.se.tetris.versus.MatchResult;
 import seoultech.se.tetris.versus.p2p.CloseReason;
 import seoultech.se.tetris.versus.p2p.ConnectionState;
 import seoultech.se.tetris.versus.p2p.Role;
@@ -254,8 +253,8 @@ public class P2PPanel extends JPanel {
     private static final int ROOM_START_TOP = 322;
 
     /**
-     * 대기실. 위에서부터 연결 안내, 내 역할과 연결 상태, 대전 설정(모드·난이도), 준비 상태, '게임 시작' 버튼,
-     * 준비가 풀렸다는 안내와 지난 대전 결과를 그린다. 방장만 대전 설정을 고를 수 있다.
+     * 대기실. 위에서부터 연결 안내, 연결 상태, 대전 설정(모드·난이도), 준비 상태, '게임 시작' 버튼을 그린다.
+     * 방장만 대전 설정을 고를 수 있다. (요구사항 「P2P 대전 모드 — 연결」의 대기 상태)
      */
     private void paintWaitingRoom(Graphics2D g2) {
         title(g2, "대기실", "");
@@ -266,8 +265,7 @@ public class P2PPanel extends JPanel {
         ConnectionState connection = state.connectionState();
         g2.setFont(new Font(Font.DIALOG, Font.BOLD, 13));
         g2.setColor(connectionColor(connection));
-        drawCentered(g2, P2PScreenTexts.role(state.role()) + "   ·   "
-                + P2PScreenTexts.connection(connection, state.roundTripMillis()), 140);
+        drawCentered(g2, P2PScreenTexts.connection(connection, state.roundTripMillis()), 140);
 
         boolean server = state.role() == Role.SERVER;
         settingRow(g2, "대전 모드", VersusModeLabels.of(state.mode()), ROOM_SETTINGS_TOP,
@@ -282,19 +280,6 @@ public class P2PPanel extends JPanel {
 
         paintReadyStatus(g2, ROOM_START_TOP - 14);
         paintStartButton(g2, server);
-
-        int y = ROOM_START_TOP + ROOM_ROW_HEIGHT + 34;
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 14));
-        if (state.isReadyReset()) {
-            g2.setColor(SELECTED);
-            drawCentered(g2, P2PScreenTexts.READY_RESET, y);
-            y += 24;
-        }
-        MatchResult last = state.lastResult();
-        if (last != null) {
-            g2.setColor(Color.WHITE);
-            drawCentered(g2, P2PScreenTexts.lastResult(last, state.role()), y);
-        }
 
         g2.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
         g2.setColor(MUTED);

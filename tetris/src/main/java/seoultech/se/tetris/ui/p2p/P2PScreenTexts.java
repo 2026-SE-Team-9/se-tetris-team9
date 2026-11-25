@@ -3,13 +3,7 @@ package seoultech.se.tetris.ui.p2p;
 import java.util.List;
 
 import seoultech.se.tetris.config.P2PSettingsService;
-import seoultech.se.tetris.engine.Difficulty;
-import seoultech.se.tetris.ui.DifficultyLabels;
 import seoultech.se.tetris.ui.p2p.P2PScreenState.InputError;
-import seoultech.se.tetris.ui.versus.VersusModeLabels;
-import seoultech.se.tetris.ui.versus.VersusScreenModel;
-import seoultech.se.tetris.versus.MatchResult;
-import seoultech.se.tetris.versus.VersusMode;
 import seoultech.se.tetris.versus.p2p.CloseReason;
 import seoultech.se.tetris.versus.p2p.ConnectListener.FailReason;
 import seoultech.se.tetris.versus.p2p.ConnectListener.Step;
@@ -30,7 +24,6 @@ public final class P2PScreenTexts {
     static final String NO_RECENT = "저장된 접속 기록이 없습니다";
 
     static final String CONNECTED = "상대와 연결되었습니다";
-    static final String READY_RESET = "방장이 대전 설정을 바꿔 준비가 풀렸습니다. 다시 눌러 주세요";
     static final String CLIENT_SETTINGS_NOTE = "대전 설정은 방장이 고릅니다";
     static final String START_GUIDE = "두 플레이어가 모두 '게임 시작'을 누르면 대전이 시작됩니다";
     static final String SERVER_ROOM_HINT = "↑ ↓ 이동   ← → 변경   Enter 선택   Esc 나가기";
@@ -97,16 +90,6 @@ public final class P2PScreenTexts {
         return addresses.stream().map(address -> address + " : " + port).toList();
     }
 
-    /** 대기실의 역할 */
-    public static String role(Role role) {
-        return role == Role.SERVER ? "방장 (서버)" : "참여자 (클라이언트)";
-    }
-
-    /** 대기실의 대전 설정. 예: "일반 모드 · 보통" */
-    public static String settings(VersusMode mode, Difficulty difficulty) {
-        return VersusModeLabels.of(mode) + " · " + DifficultyLabels.of(difficulty);
-    }
-
     /** 준비 상태. 예: "준비 완료", "대기 중" */
     public static String readyStatus(boolean ready) {
         return ready ? "준비 완료" : "대기 중";
@@ -125,11 +108,6 @@ public final class P2PScreenTexts {
     /** 대기실 아래 키 안내 */
     public static String roomHint(Role role) {
         return role == Role.SERVER ? SERVER_ROOM_HINT : CLIENT_ROOM_HINT;
-    }
-
-    /** 지난 대전 결과. 예: "지난 대전: 승리 (상대 기권)" */
-    public static String lastResult(MatchResult result, Role myRole) {
-        return "지난 대전: " + VersusScreenModel.perspectiveText(result, myRole.side());
     }
 
     /** 연결 상태와 왕복 시간. 예: "연결 상태: 정상 · 12ms" */

@@ -9,12 +9,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
-import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.ui.p2p.P2PScreenState.InputError;
-import seoultech.se.tetris.versus.EndReason;
-import seoultech.se.tetris.versus.MatchResult;
-import seoultech.se.tetris.versus.Side;
-import seoultech.se.tetris.versus.VersusMode;
 import seoultech.se.tetris.versus.p2p.CloseReason;
 import seoultech.se.tetris.versus.p2p.ConnectListener.FailReason;
 import seoultech.se.tetris.versus.p2p.ConnectListener.Step;
@@ -74,12 +69,6 @@ class P2PScreenTextsTest {
         assertEquals(List.of(P2PScreenTexts.NO_ADDRESS), P2PScreenTexts.hostAddressLines(List.of(), 24700));
     }
 
-    @Test
-    void 대기실의_역할과_대전_설정을_나타낸다() {
-        assertEquals("방장 (서버)", P2PScreenTexts.role(Role.SERVER));
-        assertEquals("참여자 (클라이언트)", P2PScreenTexts.role(Role.CLIENT));
-        assertEquals("시간제한 모드 · 어려움", P2PScreenTexts.settings(VersusMode.TIME_LIMIT, Difficulty.HARD));
-    }
 
     @Test
     void 대기실의_준비_상태와_게임_시작_버튼을_나타낸다() {
@@ -101,15 +90,6 @@ class P2PScreenTextsTest {
         assertFalse(P2PScreenTexts.roomHint(Role.CLIENT).contains("변경"));
     }
 
-    @Test
-    void 지난_대전_결과는_내_관점으로_보여준다() {
-        MatchResult serverWon = MatchResult.win(Side.P1, EndReason.TOP_OUT, 900, 400);
-
-        assertEquals("지난 대전: 승리 (상대가 더 이상 블럭을 쌓을 수 없음)",
-                P2PScreenTexts.lastResult(serverWon, Role.SERVER));
-        assertEquals("지난 대전: 패배 (더 이상 블럭을 쌓을 수 없음)",
-                P2PScreenTexts.lastResult(serverWon, Role.CLIENT));
-    }
 
     @Test
     void 게임_나가기_메뉴는_계속하기와_나가기이고_게임이_멈추지_않는다고_알린다() {

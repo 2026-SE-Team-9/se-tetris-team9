@@ -20,9 +20,6 @@ import seoultech.se.tetris.config.P2PSettingsService.RecentPeer;
 import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.ui.p2p.P2PScreenState.InputError;
 import seoultech.se.tetris.ui.p2p.P2PScreenState.Screen;
-import seoultech.se.tetris.versus.EndReason;
-import seoultech.se.tetris.versus.MatchResult;
-import seoultech.se.tetris.versus.Side;
 import seoultech.se.tetris.versus.VersusMode;
 import seoultech.se.tetris.versus.p2p.CloseReason;
 import seoultech.se.tetris.versus.p2p.ConnectListener.FailReason;
@@ -55,8 +52,6 @@ class P2PPanelTest {
         int roomRow = P2PScreenState.ROOM_ROW_MODE;
         boolean ready;
         boolean opponentReady;
-        boolean readyReset;
-        MatchResult lastResult;
 
         @Override public Screen screen() { return screen; }
         @Override public int menuIndex() { return menuIndex; }
@@ -79,8 +74,6 @@ class P2PPanelTest {
         @Override public int roomRow() { return roomRow; }
         @Override public boolean isReady() { return ready; }
         @Override public boolean isOpponentReady() { return opponentReady; }
-        @Override public boolean isReadyReset() { return readyReset; }
-        @Override public MatchResult lastResult() { return lastResult; }
     }
 
     /** 불린 동작을 기록한다. */
@@ -269,7 +262,7 @@ class P2PPanelTest {
     }
 
     @Test
-    void 대기실의_준비_상태와_안내와_지난_결과를_그릴_수_있다() {
+    void 대기실의_준비_상태를_역할마다_그릴_수_있다() {
         state.screen = Screen.WAITING_ROOM;
         assertDoesNotThrow(() -> {
             for (Role role : Role.values()) {
@@ -278,9 +271,6 @@ class P2PPanelTest {
                     state.roomRow = row;
                     state.ready = row % 2 == 0;
                     state.opponentReady = row == 1;
-                    state.readyReset = row == 2;
-                    state.lastResult = row == 0 ? null
-                            : MatchResult.win(Side.P2, EndReason.FORFEIT, 100, 300);
                     render();
                 }
             }
