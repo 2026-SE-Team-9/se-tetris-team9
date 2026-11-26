@@ -2,10 +2,12 @@ package seoultech.se.tetris.ui.p2p;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
@@ -114,6 +116,19 @@ class P2PMatchPanelTest {
             }
         });
         assertEquals("승리", withModel.game().board(Side.P2).getOverlayText());
+    }
+
+    @Test
+    void 연결_상태_줄부터_보드까지_같은_레트로_배경이_이어진다() {
+        P2PMatchPanel panel = panel(Role.SERVER);
+        assertFalse(panel.game().isOpaque());
+
+        BufferedImage image = render(panel);
+        // 연결 상태 줄의 왼쪽(글자 없는 곳)과 대전 화면 머리줄 왼쪽 모두 검정이 아닌 남보라 배경이다
+        for (int y : new int[] {5, P2PMatchPanel.STATUS_HEIGHT + 5}) {
+            Color color = new Color(image.getRGB(5, y));
+            assertTrue(color.getBlue() > color.getRed(), "y=" + y + " " + color);
+        }
     }
 
     @Test

@@ -92,10 +92,16 @@ public class VersusGamePanel extends JPanel {
         repaint();
     }
 
-    /** 화면 전체에 레트로 배경(그라데이션과 격자)을 그린다. 머리줄·이름표·보드는 그 위에 그린다. */
+    /**
+     * 화면 전체에 레트로 배경(그라데이션과 격자)을 그린다. 머리줄·이름표·보드는 그 위에 그린다.
+     * P2P 대전 화면처럼 바깥 화면이 배경을 이어서 그리는 경우에는 불투명하지 않게 두어 배경을 그리지 않는다.
+     */
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
+        if (!isOpaque()) {
+            return;
+        }
         Graphics2D g2 = (Graphics2D) g.create();
         RetroTheme.paintBackground(g2, getWidth(), getHeight());
         g2.dispose();
