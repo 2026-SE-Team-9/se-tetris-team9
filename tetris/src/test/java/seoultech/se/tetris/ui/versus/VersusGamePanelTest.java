@@ -201,7 +201,6 @@ class VersusGamePanelTest {
         // 틀 위쪽 선
         assertEquals(RetroTheme.CYAN.getRGB(), image.getRGB(right - 60, 10));
     }
-
     @Test
     void 불투명하지_않게_두면_배경을_그리지_않는다() {
         panel.setOpaque(false);
