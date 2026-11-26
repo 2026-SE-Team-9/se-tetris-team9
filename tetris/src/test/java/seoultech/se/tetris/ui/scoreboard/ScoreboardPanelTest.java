@@ -3,7 +3,9 @@ package seoultech.se.tetris.ui.scoreboard;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.nio.file.Path;
@@ -16,6 +18,7 @@ import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.engine.GameMode;
 import seoultech.se.tetris.score.CsvScoreRepository;
 import seoultech.se.tetris.score.ScoreRepository;
+import seoultech.se.tetris.ui.theme.RetroTheme;
 
 class ScoreboardPanelTest {
 
@@ -68,5 +71,27 @@ class ScoreboardPanelTest {
         for (GameMode mode : GameMode.values()) {
             assertTrue(!ScoreboardPanel.modeLabel(mode).isBlank());
         }
+    }
+
+    @Test
+    void 레트로_배경과_노란_모드_상자와_하늘색_표_틀을_그린다() {
+        ScoreRepository repository = new CsvScoreRepository(dir.resolve("retro.csv"));
+        repository.addScore("AAA", 900, GameMode.NORMAL, Difficulty.NORMAL);
+        ScoreboardPanel panel = new ScoreboardPanel(new ScoreboardModel(repository, () -> { }));
+        Dimension size = panel.getPreferredSize();
+        panel.setSize(size);
+        BufferedImage image = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_RGB);
+
+        panel.paint(image.getGraphics());
+
+        Rectangle mode = ScoreboardPanel.MODE_BOX;
+        Rectangle table = ScoreboardPanel.TABLE_FRAME;
+        assertEquals(RetroTheme.YELLOW.getRGB(),
+                image.getRGB(mode.x + mode.width / 2, mode.y));
+        assertEquals(RetroTheme.CYAN.getRGB(),
+                image.getRGB(table.x + table.width / 2, table.y));
+        Color corner = new Color(image.getRGB(5, 5));
+        assertTrue(corner.getBlue() > corner.getRed());
+        assertTrue(table.y + table.height < size.height - 40);
     }
 }
