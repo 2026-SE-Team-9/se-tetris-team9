@@ -16,8 +16,11 @@ import java.util.Objects;
 import javax.swing.JPanel;
 
 import seoultech.se.tetris.config.P2PSettingsService.RecentPeer;
+import seoultech.se.tetris.ui.DifficultyLabels;
+import seoultech.se.tetris.ui.versus.VersusModeLabels;
 import seoultech.se.tetris.versus.p2p.CloseReason;
 import seoultech.se.tetris.versus.p2p.ConnectionState;
+import seoultech.se.tetris.versus.p2p.Role;
 
 /**
  * P2P 대전 모드의 연결 화면. 첫 화면, 방 생성, 참여, 대기실을 그린다.
@@ -72,6 +75,8 @@ public class P2PPanel extends JPanel {
         switch (keyCode) {
             case KeyEvent.VK_UP -> actions.up();
             case KeyEvent.VK_DOWN -> actions.down();
+            case KeyEvent.VK_LEFT -> actions.left();
+            case KeyEvent.VK_RIGHT -> actions.right();
             case KeyEvent.VK_ENTER -> actions.select();
             case KeyEvent.VK_ESCAPE -> actions.back();
             case KeyEvent.VK_BACK_SPACE -> actions.erase();
@@ -243,21 +248,82 @@ public class P2PPanel extends JPanel {
     // 대기실
     // ------------------------------------------------------------------
 
+    private static final int ROOM_ROW_HEIGHT = 38;
+    private static final int ROOM_SETTINGS_TOP = 160;
+    private static final int ROOM_START_TOP = 322;
+
+    /**
+     * 대기실. 위에서부터 연결 안내, 연결 상태, 대전 설정(모드·난이도), 준비 상태, '게임 시작' 버튼을 그린다.
+     * 방장만 대전 설정을 고를 수 있다. (요구사항 「P2P 대전 모드 — 연결」의 대기 상태)
+     */
     private void paintWaitingRoom(Graphics2D g2) {
         title(g2, "대기실", "");
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 22));
+        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 18));
         g2.setColor(SUCCESS);
-        drawCentered(g2, "상대와 연결되었습니다", 140);
+        drawCentered(g2, P2PScreenTexts.CONNECTED, 114);
 
-        box(g2, FIELD_LEFT, 180, FIELD_WIDTH, 150, OUTLINE);
-        row(g2, "내 역할", P2PScreenTexts.role(state.role()), 220);
-        row(g2, "대전 설정", P2PScreenTexts.settings(state.mode(), state.difficulty()), 260);
         ConnectionState connection = state.connectionState();
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 15));
+        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 13));
         g2.setColor(connectionColor(connection));
-        drawCentered(g2, P2PScreenTexts.connection(connection, state.roundTripMillis()), 304);
+        drawCentered(g2, P2PScreenTexts.connection(connection, state.roundTripMillis()), 140);
 
-        hint(g2, "Esc 나가기 (연결을 끊고 첫 화면으로)");
+        boolean server = state.role() == Role.SERVER;
+        settingRow(g2, "대전 모드", VersusModeLabels.of(state.mode()), ROOM_SETTINGS_TOP,
+                P2PScreenState.ROOM_ROW_MODE, server);
+        settingRow(g2, "난이도", DifficultyLabels.of(state.difficulty()), ROOM_SETTINGS_TOP + ROOM_ROW_HEIGHT + 8,
+                P2PScreenState.ROOM_ROW_DIFFICULTY, server);
+        if (!server) {
+            g2.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
+            g2.setColor(MUTED);
+            drawCentered(g2, P2PScreenTexts.CLIENT_SETTINGS_NOTE, ROOM_SETTINGS_TOP + 2 * ROOM_ROW_HEIGHT + 28);
+        }
+
+        paintReadyStatus(g2, ROOM_START_TOP - 14);
+        paintStartButton(g2, server);
+
+        g2.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
+        g2.setColor(MUTED);
+        drawCentered(g2, P2PScreenTexts.START_GUIDE, getHeight() - 52);
+        hint(g2, P2PScreenTexts.roomHint(state.role()));
+    }
+
+    /** 대전 설정 한 줄. 방장이 고를 수 있는 줄이 선택되어 있으면 노란 테두리와 ◀ ▶로 표시한다. */
+    private void settingRow(Graphics2D g2, String label, String value, int top, int row, boolean editable) {
+        boolean selected = editable && state.roomRow() == row;
+        box(g2, FIELD_LEFT, top, FIELD_WIDTH, ROOM_ROW_HEIGHT, selected ? SELECTED : OUTLINE);
+        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 14));
+        g2.setColor(MUTED);
+        g2.drawString(label, FIELD_LEFT + 16, top + 25);
+        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
+        g2.setColor(selected ? SELECTED : Color.WHITE);
+        String text = P2PScreenTexts.choice(value, selected);
+        FontMetrics metrics = g2.getFontMetrics();
+        int valueCenter = FIELD_LEFT + 110 + (FIELD_WIDTH - 110) / 2;
+        g2.drawString(text, valueCenter - metrics.stringWidth(text) / 2, top + 25);
+    }
+
+    /** 나와 상대의 준비 상태를 왼쪽·오른쪽 절반에 그린다. 준비를 마쳤으면 초록이다. */
+    private void paintReadyStatus(Graphics2D g2, int y) {
+        int half = FIELD_WIDTH / 2;
+        readyLabel(g2, "나", state.isReady(), FIELD_LEFT, half, y);
+        readyLabel(g2, "상대", state.isOpponentReady(), FIELD_LEFT + half, half, y);
+    }
+
+    private static void readyLabel(Graphics2D g2, String who, boolean ready, int left, int width, int y) {
+        String text = who + "  " + P2PScreenTexts.readyStatus(ready);
+        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 15));
+        g2.setColor(ready ? SUCCESS : MUTED);
+        FontMetrics metrics = g2.getFontMetrics();
+        g2.drawString(text, left + (width - metrics.stringWidth(text)) / 2, y);
+    }
+
+    /** '게임 시작' 버튼. 참여자는 이 버튼만 고르므로 항상 선택된 것으로 그린다. 이미 눌렀으면 "준비 취소"를 초록으로 그린다. */
+    private void paintStartButton(Graphics2D g2, boolean server) {
+        boolean selected = !server || state.roomRow() == P2PScreenState.ROOM_ROW_START;
+        box(g2, FIELD_LEFT, ROOM_START_TOP, FIELD_WIDTH, ROOM_ROW_HEIGHT, selected ? SELECTED : OUTLINE);
+        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 18));
+        g2.setColor(state.isReady() ? SUCCESS : selected ? SELECTED : Color.WHITE);
+        drawCentered(g2, P2PScreenTexts.startButton(state.isReady()), ROOM_START_TOP + 26);
     }
 
     /** 연결 상태의 색. 정상은 초록, 지연은 노랑, 그보다 나쁘면 빨강 */
@@ -267,15 +333,6 @@ public class P2PPanel extends JPanel {
             case LAGGING -> SELECTED;
             case CHECKING, DISCONNECTED -> ERROR;
         };
-    }
-
-    private void row(Graphics2D g2, String label, String value, int y) {
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 14));
-        g2.setColor(MUTED);
-        g2.drawString(label, FIELD_LEFT + 24, y);
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
-        g2.setColor(Color.WHITE);
-        g2.drawString(value, FIELD_LEFT + 120, y);
     }
 
     // ------------------------------------------------------------------
