@@ -100,9 +100,19 @@ public final class RetroTheme {
      * @param width 가운데를 맞출 영역의 너비. 영역은 x = 0에서 시작한다
      */
     public static void drawShadowTitle(Graphics2D g2, String text, int width, int baseline) {
-        int x = centeredX(g2, text, 0, width);
+        drawShadowText(g2, text, 0, width, baseline, TITLE_SHADOW_OFFSET);
+    }
+
+    /**
+     * {@code left}부터 {@code width}만큼의 영역 가운데에 분홍 글자와 하늘색 그림자를 그린다.
+     * 보드 위의 "GAME OVER"처럼 화면 일부에 쓰는 강조 문구에 쓴다.
+     *
+     * @param offset 그림자를 비껴 놓는 거리(px). 글자 크기에 맞춰 정한다
+     */
+    public static void drawShadowText(Graphics2D g2, String text, int left, int width, int baseline, int offset) {
+        int x = centeredX(g2, text, left, width);
         g2.setColor(CYAN);
-        g2.drawString(text, x + TITLE_SHADOW_OFFSET, baseline + TITLE_SHADOW_OFFSET);
+        g2.drawString(text, x + offset, baseline + offset);
         g2.setColor(PINK);
         g2.drawString(text, x, baseline);
     }

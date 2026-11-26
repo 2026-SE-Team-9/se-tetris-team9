@@ -2,6 +2,7 @@ package seoultech.se.tetris.ui.game;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
@@ -102,7 +103,9 @@ class GamePanelAttackQueueTest {
 
         BufferedImage image = render(panel);
 
-        assertEquals(Color.BLACK, queuePixel(panel, image, 0, 0));
+        // 대기열 자리에는 공격 칸도, 대기열의 검정 바탕도 그리지 않고 화면 배경만 보인다
+        assertNotEquals(GARBAGE, queuePixel(panel, image, 0, 0));
+        assertNotEquals(Color.BLACK, queuePixel(panel, image, 0, 0));
     }
 
     @Test

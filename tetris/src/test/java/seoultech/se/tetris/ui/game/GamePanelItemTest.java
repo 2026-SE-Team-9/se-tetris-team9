@@ -14,15 +14,18 @@ import seoultech.se.tetris.blocks.BlockType;
 import seoultech.se.tetris.blocks.ItemType;
 import seoultech.se.tetris.component.model.GameState;
 import seoultech.se.tetris.engine.Board;
+import seoultech.se.tetris.engine.TetrisEngine;
 
 /** 아이템이 보드, 현재 블럭, 다음 블럭 영역에 올바른 색과 모양으로 그려지는지 확인한다. */
 class GamePanelItemTest {
 
     private static final int CELL = 28;
     private static final int MARGIN = 24;
-    private static final int SIDE_X = MARGIN + Board.WIDTH * CELL + MARGIN;
+    /** 배율 1.0 게임 화면의 다음 블럭 첫 칸 위치. 다음 블럭은 NEXT 틀 가운데에 그린다 */
+    private static final GamePanel LAYOUT = new GamePanel(new TetrisEngine());
+    private static final int SIDE_X = LAYOUT.nextLeft();
     private static final int MINI = 22;
-    private static final int NEXT_Y = MARGIN + 30;
+    private static final int NEXT_Y = LAYOUT.nextTop();
 
     private static BufferedImage render(GameState state, double scale) {
         GamePanel panel = new GamePanel(state, scale);

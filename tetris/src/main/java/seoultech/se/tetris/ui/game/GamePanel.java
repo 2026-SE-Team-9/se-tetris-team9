@@ -17,8 +17,15 @@ import seoultech.se.tetris.blocks.CellCode;
 import seoultech.se.tetris.component.model.GameState;
 import seoultech.se.tetris.component.model.GarbageLine;
 import seoultech.se.tetris.engine.Board;
+import seoultech.se.tetris.ui.theme.RetroTheme;
 
-/** 보드(20x10), 다음 블럭, 점수·레벨·줄 수를 그리는 인게임 화면. {@link GameState}를 읽기만 한다. */
+/**
+ * 보드(20x10), 다음 블럭, 점수·레벨·줄 수를 그리는 인게임 화면. {@link GameState}를 읽기만 한다.
+ *
+ * <p>레트로 디자인({@link RetroTheme})으로 그린다. 배경 격자 위에 보드와 옆 패널의 각 항목을 하늘색 이중선 틀에 담고,
+ * 블럭 칸에는 밝은 윗면과 어두운 아랫면 음영을 더한다. 블럭 색과 문자, 고스트 블럭의 흐린 {@code #}, 공격 칸의 회색
+ * {@code X}는 팀 결정대로 그대로 둔다. 보드와 공격 대기열의 바탕은 블럭이 가장 잘 보이도록 검정으로 둔다.
+ */
 public class GamePanel extends JPanel {
 
     private static final long serialVersionUID = 1L;
@@ -37,15 +44,30 @@ public class GamePanel extends JPanel {
     private static final int BASE_QUEUE_CELL = 15;
     private static final int BASE_QUEUE_TOP = 386;
     /** 대기열이 가득 찼을 때 줄 수 표시 색. 더 받은 공격은 무시된다는 것을 알린다. */
-    private static final Color ATTACK_FULL_TEXT = new Color(255, 110, 110);
+    private static final Color ATTACK_FULL_TEXT = RetroTheme.PINK;
 
     /** 공격을 보냈을 때 보드 위에 떠오르는 문구의 색 */
-    static final Color ATTACK_POPUP_COLOR = new Color(255, 170, 60);
+    static final Color ATTACK_POPUP_COLOR = RetroTheme.YELLOW;
     /** 공격 대기열에 새로 붙은 줄이 깜빡일 때의 칸 색 */
-    static final Color QUEUE_HIGHLIGHT_COLOR = new Color(255, 120, 120);
+    static final Color QUEUE_HIGHLIGHT_COLOR = RetroTheme.PINK;
     /** 문구가 떠오르는 높이(px, 배율 1.0 기준) */
     private static final int BASE_POPUP_RISE = 60;
-    private static final Color GRID = new Color(40, 40, 40);
+    /** 보드와 공격 대기열의 격자선. 검정 바탕에서 옅게 보이는 남보라 */
+    static final Color GRID = new Color(0x18, 0x14, 0x34);
+    /** 보드와 공격 대기열의 바탕. 블럭 색이 가장 잘 보이도록 검정으로 둔다 */
+    static final Color BOARD_BACKGROUND = Color.BLACK;
+
+    /** 배율 1.0일 때 보드·옆 패널 틀이 내용 바깥으로 나가는 거리(px) */
+    private static final int BASE_FRAME_PAD = 6;
+    /** 배율 1.0일 때 옆 패널 틀의 위치와 크기(px). 위쪽은 보드 틀과 맞춘다 */
+    private static final int BASE_NEXT_HEIGHT = 130;
+    private static final int BASE_STAT_TOP = 140;
+    private static final int BASE_STAT_HEIGHT = 58;
+    private static final int BASE_STAT_GAP = 10;
+    private static final int BASE_QUEUE_LABEL = 30;
+    /** 블럭 칸의 밝은 윗면과 어두운 아랫면 */
+    private static final Color CELL_LIGHT = new Color(255, 255, 255, 90);
+    private static final Color CELL_SHADE = new Color(0, 0, 0, 70);
     private static final Color GHOST_FILL = new Color(180, 180, 180, 90);
     private static final Color GHOST_TEXT = new Color(200, 200, 200);
 
@@ -81,7 +103,7 @@ public class GamePanel extends JPanel {
     public GamePanel(GameState state, double scale, boolean colorBlind) {
         this.state = state;
         this.colorBlind = colorBlind;
-        setBackground(Color.BLACK);
+        setBackground(RetroTheme.BACKGROUND_TOP);
         setScale(scale);
     }
 
@@ -168,11 +190,40 @@ public class GamePanel extends JPanel {
         return new Font(family, style, scaled(baseSize));
     }
 
+    private int framePad() {
+        return Math.max(2, scaled(BASE_FRAME_PAD));
+    }
+
+    /** 옆 패널 틀의 왼쪽 x 좌표. 틀은 옆 패널 내용보다 조금 바깥에서 시작한다 */
+    private int sideFrameX() {
+        return sideX - framePad();
+    }
+
+    private int sideFrameWidth() {
+        return sideW + 2 * framePad();
+    }
+
+    /** 옆 패널 틀의 위쪽 y 좌표. 보드 틀의 위쪽과 맞춘다 */
+    private int sideFrameTop() {
+        return margin - framePad();
+    }
+
+    /** 다음 블럭의 첫 칸 왼쪽 x 좌표(px). 4칸 폭을 NEXT 틀 가운데에 놓는다 */
+    int nextLeft() {
+        return sideX + (sideW - BlockType.SIZE * scaled(BASE_MINI_CELL)) / 2;
+    }
+
+    /** 다음 블럭의 첫 칸 위쪽 y 좌표(px) */
+    int nextTop() {
+        return sideFrameTop() + scaled(34);
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        RetroTheme.paintBackground(g2, getWidth(), getHeight());
 
         drawBoard(g2);
         drawSidePanel(g2);
@@ -188,6 +239,10 @@ public class GamePanel extends JPanel {
     }
 
     private void drawBoard(Graphics2D g2) {
+        int pad = framePad();
+        RetroTheme.drawFrame(g2, margin - pad, margin - pad, boardW + 2 * pad, boardH + 2 * pad, RetroTheme.CYAN);
+        g2.setColor(BOARD_BACKGROUND);
+        g2.fillRect(margin, margin, boardW, boardH);
         g2.setColor(GRID);
         for (int r = 0; r <= Board.VISIBLE_HEIGHT; r++) {
             g2.drawLine(margin, margin + r * cell, margin + boardW, margin + r * cell);
@@ -232,8 +287,6 @@ public class GamePanel extends JPanel {
             }
         }
         drawInsertedRowsHighlight(g2);
-        g2.setColor(Color.WHITE);
-        g2.drawRect(margin - 1, margin - 1, boardW + 1, boardH + 1);
     }
 
     /** 보드에 막 추가된 공격 줄(맨 아래 줄들)을 흰색으로 덮어 빛나게 한다. 시간이 지날수록 옅어진다. */
@@ -260,7 +313,7 @@ public class GamePanel extends JPanel {
         int alpha = (int) Math.round(255 * Math.min(1.0, (1.0 - progress) * 2));
         int y = margin + boardH * 3 / 5 - (int) Math.round(scaled(BASE_POPUP_RISE) * progress);
 
-        g2.setFont(font(Font.DIALOG, Font.BOLD, 28));
+        g2.setFont(font(Font.MONOSPACED, Font.BOLD, 28));
         FontMetrics fm = g2.getFontMetrics();
         int x = margin + (boardW - fm.stringWidth(text)) / 2;
         int shadow = Math.max(1, scaled(2));
@@ -295,26 +348,29 @@ public class GamePanel extends JPanel {
         }
     }
 
+    /** 옆 패널. NEXT는 분홍 틀, 점수·레벨·줄 수와 공격 대기열은 하늘색 틀에 담는다. */
     private void drawSidePanel(Graphics2D g2) {
-        g2.setColor(Color.WHITE);
-        g2.setFont(font(Font.DIALOG, Font.BOLD, 16));
-        g2.drawString("NEXT", sideX, margin + scaled(16));
+        int top = sideFrameTop();
+        RetroTheme.drawFrame(g2, sideFrameX(), top, sideFrameWidth(), scaled(BASE_NEXT_HEIGHT), RetroTheme.PINK);
+        g2.setColor(RetroTheme.PINK);
+        g2.setFont(font(Font.MONOSPACED, Font.BOLD, 14));
+        g2.drawString("NEXT", sideX + scaled(6), top + scaled(22));
         Block next = state.getNextBlock();
         if (next != null) {
             int mini = scaled(BASE_MINI_CELL);
             for (int r = 0; r < BlockType.SIZE; r++) {
                 for (int c = 0; c < BlockType.SIZE; c++) {
                     if (next.isFilled(r, c)) {
-                        drawCell(g2, sideX + c * mini, margin + scaled(30) + r * mini, next.codeAt(r, c), mini);
+                        drawCell(g2, nextLeft() + c * mini, nextTop() + r * mini, next.codeAt(r, c), mini);
                     }
                 }
             }
         }
 
-        int y = margin + scaled(170);
-        y = drawStat(g2, "SCORE", String.valueOf(state.getScore()), y);
-        y = drawStat(g2, "LEVEL", String.valueOf(state.getLevel()), y);
-        drawStat(g2, "LINES", String.valueOf(state.getLinesCleared()), y);
+        int y = top + scaled(BASE_STAT_TOP);
+        y = drawStat(g2, "SCORE", String.valueOf(state.getScore()), y, RetroTheme.YELLOW);
+        y = drawStat(g2, "LEVEL", String.valueOf(state.getLevel()), y, RetroTheme.TEXT);
+        drawStat(g2, "LINES", String.valueOf(state.getLinesCleared()), y, RetroTheme.TEXT);
 
         if (attackQueueVisible) {
             drawAttackQueue(g2);
@@ -330,14 +386,21 @@ public class GamePanel extends JPanel {
         List<GarbageLine> pending = state.getPendingGarbage();
         int top = attackQueueTop();
         int queueCell = attackQueueCell();
+        int pad = framePad();
+        int queueHeight = ATTACK_QUEUE_ROWS * queueCell;
+        int frameTop = top - scaled(BASE_QUEUE_LABEL);
+        RetroTheme.drawFrame(g2, sideFrameX(), frameTop, sideFrameWidth(), top + queueHeight + pad - frameTop,
+                RetroTheme.CYAN);
+        g2.setColor(BOARD_BACKGROUND);
+        g2.fillRect(sideX, top, Board.WIDTH * queueCell, queueHeight);
 
-        g2.setFont(font(Font.DIALOG, Font.BOLD, 14));
-        g2.setColor(Color.GRAY);
-        g2.drawString("ATTACK", sideX, top - scaled(8));
+        g2.setFont(font(Font.MONOSPACED, Font.BOLD, 13));
+        g2.setColor(RetroTheme.MUTED);
+        g2.drawString("ATTACK", sideX + scaled(6), top - scaled(8));
         String count = pending.size() + " / " + ATTACK_QUEUE_ROWS;
-        g2.setColor(pending.size() >= ATTACK_QUEUE_ROWS ? ATTACK_FULL_TEXT : Color.WHITE);
+        g2.setColor(pending.size() >= ATTACK_QUEUE_ROWS ? ATTACK_FULL_TEXT : RetroTheme.TEXT);
         FontMetrics fm = g2.getFontMetrics();
-        g2.drawString(count, sideX + Board.WIDTH * queueCell - fm.stringWidth(count), top - scaled(8));
+        g2.drawString(count, sideX + Board.WIDTH * queueCell - scaled(6) - fm.stringWidth(count), top - scaled(8));
 
         g2.setColor(GRID);
         for (int r = 0; r <= ATTACK_QUEUE_ROWS; r++) {
@@ -382,14 +445,17 @@ public class GamePanel extends JPanel {
         return sideX;
     }
 
-    private int drawStat(Graphics2D g2, String label, String value, int y) {
-        g2.setFont(font(Font.DIALOG, Font.BOLD, 14));
-        g2.setColor(Color.GRAY);
-        g2.drawString(label, sideX, y);
+    /** 이름과 값을 하늘색 틀 하나에 그리고, 다음 틀의 위쪽 y 좌표를 돌려준다. */
+    private int drawStat(Graphics2D g2, String label, String value, int top, Color valueColor) {
+        int height = scaled(BASE_STAT_HEIGHT);
+        RetroTheme.drawFrame(g2, sideFrameX(), top, sideFrameWidth(), height, RetroTheme.CYAN);
+        g2.setFont(font(Font.MONOSPACED, Font.BOLD, 13));
+        g2.setColor(RetroTheme.MUTED);
+        g2.drawString(label, sideX + scaled(6), top + scaled(20));
         g2.setFont(font(Font.MONOSPACED, Font.BOLD, 22));
-        g2.setColor(Color.WHITE);
-        g2.drawString(value, sideX, y + scaled(26));
-        return y + scaled(66);
+        g2.setColor(valueColor);
+        g2.drawString(value, sideX + scaled(6), top + scaled(46));
+        return top + height + scaled(BASE_STAT_GAP);
     }
 
     /**
@@ -414,6 +480,9 @@ public class GamePanel extends JPanel {
      *
      * <p>색맹 모드의 아이템 칸은 안쪽에 2픽셀 테두리를 그린다. 테두리는 바깥 1픽셀을 띄워
      * 칸의 가장자리 색은 그대로 남긴다.
+     *
+     * <p>레트로 느낌을 위해 칸의 맨 윗줄을 밝게, 아래쪽 두 줄을 어둡게 덧칠한다. 칸 안쪽(왼쪽 위 모서리 안쪽 포함)의
+     * 색은 블럭 색 그대로 남긴다.
      */
     private void drawCell(Graphics2D g2, int x, int y, int code, int size) {
         Color fill = BlockPalette.colorOf(code, colorBlind);
@@ -426,6 +495,12 @@ public class GamePanel extends JPanel {
             g2.setColor(fill);
             g2.fillRect(x + 5, y + 5, size - 10, size - 10);
         }
+        int light = Math.max(1, size / 20);
+        int shade = Math.max(1, size / 14);
+        g2.setColor(CELL_LIGHT);
+        g2.fillRect(x + 1, y + 1, size - 2, light);
+        g2.setColor(CELL_SHADE);
+        g2.fillRect(x + 1, y + size - 1 - shade, size - 2, shade);
         g2.setColor(BlockPalette.textColorOf(code, colorBlind));
         g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, size * 5 / 8));
         FontMetrics fm = g2.getFontMetrics();
@@ -433,12 +508,11 @@ public class GamePanel extends JPanel {
         g2.drawString(s, x + (size - fm.stringWidth(s)) / 2, y + (size + fm.getAscent() - fm.getDescent()) / 2);
     }
 
+    /** 보드를 어둡게 덮고 가운데에 분홍 글자와 하늘색 그림자로 문구를 그린다. (일시정지, GAME OVER, 승패, 카운트다운) */
     private void drawOverlay(Graphics2D g2, String text) {
-        g2.setColor(new Color(0, 0, 0, 170));
+        g2.setColor(RetroTheme.withAlpha(RetroTheme.BACKGROUND_TOP, 190));
         g2.fillRect(margin, margin, boardW, boardH);
-        g2.setColor(Color.WHITE);
-        g2.setFont(font(Font.DIALOG, Font.BOLD, 26));
-        FontMetrics fm = g2.getFontMetrics();
-        g2.drawString(text, margin + (boardW - fm.stringWidth(text)) / 2, margin + boardH / 2);
+        g2.setFont(font(Font.MONOSPACED, Font.BOLD, 30));
+        RetroTheme.drawShadowText(g2, text, margin, boardW, margin + boardH / 2, Math.max(1, scaled(3)));
     }
 }
