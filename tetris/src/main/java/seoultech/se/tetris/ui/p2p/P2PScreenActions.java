@@ -40,4 +40,16 @@ public interface P2PScreenActions {
 
     /** Backspace */
     void erase();
+
+    /** Ctrl+C. 방 생성 화면에서 주소와 포트를 클립보드에 복사한다 */
+    default void copy() {
+    }
+
+    /** Ctrl+V. 참여 화면 입력칸에 클립보드 문자열을 붙여넣는다 */
+    default void paste(String text) {
+    }
+
+    /** S. 방 생성 실패 시 설정 화면으로 이동한다 */
+    default void openSettings() {
+    }
 }

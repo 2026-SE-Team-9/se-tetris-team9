@@ -8,8 +8,12 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.Toolkit;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -60,6 +64,19 @@ public class P2PPanel extends JPanel {
         addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent event) {
+                if (event.isControlDown() || event.isMetaDown()) {
+                    if (event.getKeyCode() == KeyEvent.VK_C) {
+                        actions.copy();
+                        return;
+                    }
+                    if (event.getKeyCode() == KeyEvent.VK_V) {
+                        String text = readClipboardText();
+                        if (text != null) {
+                            actions.paste(text);
+                        }
+                        return;
+                    }
+                }
                 handleKey(event.getKeyCode());
             }
 
@@ -80,7 +97,17 @@ public class P2PPanel extends JPanel {
             case KeyEvent.VK_ENTER -> actions.select();
             case KeyEvent.VK_ESCAPE -> actions.back();
             case KeyEvent.VK_BACK_SPACE -> actions.erase();
+            case KeyEvent.VK_S -> actions.openSettings();
             default -> { }
+        }
+    }
+
+    private static String readClipboardText() {
+        try {
+            Object data = Toolkit.getDefaultToolkit().getSystemClipboard().getData(DataFlavor.stringFlavor);
+            return data instanceof String text ? text : null;
+        } catch (UnsupportedFlavorException | IOException | IllegalStateException e) {
+            return null;
         }
     }
 
@@ -159,7 +186,15 @@ public class P2PPanel extends JPanel {
         }
 
         paintProgress(g2, 170 + boxHeight + 50);
-        hint(g2, state.failure() != null ? "Enter 다시 시도   Esc 취소" : "Esc 취소");
+        if (state.isAddressCopied()) {
+            g2.setFont(new Font(Font.DIALOG, Font.BOLD, 14));
+            g2.setColor(SUCCESS);
+            drawCentered(g2, "주소가 클립보드에 복사되었습니다", 170 + boxHeight + 82);
+        }
+        String hostHint = state.failure() != null
+                ? "Enter 다시 시도   S 설정 열기   Esc 취소"
+                : "Ctrl+C 주소 복사   S 설정 열기   Esc 취소";
+        hint(g2, hostHint);
     }
 
     /** 실패 안내(붉은색)가 있으면 그것을, 없으면 진행 단계(하늘색)를 가운데에 그린다. */
@@ -168,7 +203,11 @@ public class P2PPanel extends JPanel {
         String error = errorText();
         if (error != null) {
             g2.setColor(ERROR);
-            drawCentered(g2, error, y);
+            int lineY = y;
+            for (String line : error.split("\n")) {
+                drawCentered(g2, line, lineY);
+                lineY += 22;
+            }
         } else if (state.step() != null) {
             g2.setColor(Color.CYAN);
             drawCentered(g2, P2PScreenTexts.step(state.step()), y);
@@ -205,7 +244,7 @@ public class P2PPanel extends JPanel {
 
         paintProgress(g2, 342);
         paintRecent(g2, 372);
-        hint(g2, state.isConnecting() ? "Esc 접속 취소" : "↑ ↓ 이동   Enter 접속·선택   Esc 뒤로");
+        hint(g2, state.isConnecting() ? "Esc 접속 취소" : "↑ ↓ 이동   Ctrl+V 붙여넣기   Enter 접속·선택   Esc 뒤로");
     }
 
     /** 이름표와 입력칸. 선택된 칸은 노란 테두리와 커서(_)로 표시한다. */
