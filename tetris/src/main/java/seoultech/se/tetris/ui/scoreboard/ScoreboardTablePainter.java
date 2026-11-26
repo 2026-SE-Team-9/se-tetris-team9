@@ -8,8 +8,14 @@ import java.util.List;
 
 import seoultech.se.tetris.score.ScoreRecord;
 import seoultech.se.tetris.ui.DifficultyLabels;
+import seoultech.se.tetris.ui.theme.RetroTheme;
 
-/** 순위·이름·난이도·점수 표를 그린다. 종료 화면과 시작 메뉴의 스코어보드가 같은 표를 쓴다. */
+/**
+ * 순위·이름·난이도·점수 표를 그린다. 종료 화면과 시작 메뉴의 스코어보드가 같은 표를 쓴다.
+ *
+ * <p>레트로 디자인({@link RetroTheme})의 고정폭 글꼴로 그린다. 머리글은 보조 글자색, 기록은 기본 글자색이며,
+ * 방금 등록한 순위는 노란 글자와 옅은 노란 줄로 강조한다.
+ */
 public final class ScoreboardTablePainter {
 
     /**
@@ -24,6 +30,13 @@ public final class ScoreboardTablePainter {
     /** 표 한 행의 높이 */
     public static final int ROW_HEIGHT = 24;
 
+    /** 머리글 색 */
+    static final Color HEADER_COLOR = RetroTheme.MUTED;
+    /** 기록 색 */
+    static final Color ROW_COLOR = RetroTheme.TEXT;
+    /** 방금 등록한 순위의 강조 색 */
+    static final Color HIGHLIGHT_COLOR = RetroTheme.YELLOW;
+
     private ScoreboardTablePainter() {
     }
 
@@ -37,8 +50,8 @@ public final class ScoreboardTablePainter {
      */
     public static void paint(Graphics2D g2, int width, int headerY, List<ScoreRecord> records,
             int highlightedRank, String emptyMessage, Color emptyColor) {
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 16));
-        g2.setColor(Color.GRAY);
+        g2.setFont(RetroTheme.mono(Font.BOLD, 15));
+        g2.setColor(HEADER_COLOR);
         g2.drawString("순위", RANK_X, headerY);
         g2.drawString("이름", NAME_X, headerY);
         g2.drawString("난이도", DIFFICULTY_X, headerY);
@@ -56,7 +69,12 @@ public final class ScoreboardTablePainter {
             ScoreRecord record = records.get(i);
             y += ROW_HEIGHT;
             // 강조는 등록 때 반환된 순위로만 정한다. 이름과 점수가 같은 다른 기록은 강조하지 않는다.
-            g2.setColor(i + 1 == highlightedRank ? Color.YELLOW : Color.WHITE);
+            boolean highlighted = i + 1 == highlightedRank;
+            if (highlighted) {
+                g2.setColor(RetroTheme.withAlpha(HIGHLIGHT_COLOR, 28));
+                g2.fillRect(RANK_X - 12, y - ROW_HEIGHT + 6, SCORE_X - RANK_X + 24, ROW_HEIGHT);
+            }
+            g2.setColor(highlighted ? HIGHLIGHT_COLOR : ROW_COLOR);
             g2.drawString(String.valueOf(i + 1), RANK_X, y);
             g2.drawString(record.playerName(), NAME_X, y);
             g2.drawString(DifficultyLabels.of(record.difficulty()), DIFFICULTY_X, y);

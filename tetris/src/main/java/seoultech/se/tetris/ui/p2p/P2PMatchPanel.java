@@ -14,6 +14,7 @@ import javax.swing.JComponent;
 import javax.swing.JPanel;
 
 import seoultech.se.tetris.ui.game.GamePanel;
+import seoultech.se.tetris.ui.theme.RetroTheme;
 import seoultech.se.tetris.ui.versus.VersusGamePanel;
 import seoultech.se.tetris.ui.versus.VersusPresentation;
 import seoultech.se.tetris.ui.versus.VersusScreenModel;
@@ -26,6 +27,9 @@ import seoultech.se.tetris.versus.p2p.ConnectionState;
  * 내 보드가 왼쪽에 놓이고, 결과는 내 관점의 승리 / 패배로 표시된다. 카운트다운도 로컬 대전과 같이 보드 위에 표시된다.
  *
  * <p>값을 바꾸는 것은 대전 흐름을 맡는 쪽이 한다. 연결 상태가 바뀌면 {@link #setConnection}을 호출한다.
+ *
+ * <p>레트로 디자인({@link RetroTheme})으로 그린다. 배경은 이 화면이 연결 상태 줄부터 보드까지 한 번에 그리므로,
+ * 결과를 보여 주는 동안에도 화면 전체가 같은 디자인으로 이어진다.
  */
 public class P2PMatchPanel extends JPanel {
 
@@ -42,7 +46,9 @@ public class P2PMatchPanel extends JPanel {
     public P2PMatchPanel(VersusGamePanel game) {
         super(new BorderLayout());
         this.game = Objects.requireNonNull(game, "game");
-        setBackground(Color.BLACK);
+        setBackground(RetroTheme.BACKGROUND_TOP);
+        // 배경은 이 화면이 한 번에 그리므로 안쪽 대전 화면은 배경을 그리지 않는다
+        game.setOpaque(false);
         add(statusLine, BorderLayout.NORTH);
         add(game, BorderLayout.CENTER);
     }
@@ -70,6 +76,15 @@ public class P2PMatchPanel extends JPanel {
         statusLine.repaint();
     }
 
+    /** 연결 상태 줄부터 보드까지 이어지는 레트로 배경을 그린다. */
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        Graphics2D g2 = (Graphics2D) g.create();
+        RetroTheme.paintBackground(g2, getWidth(), getHeight());
+        g2.dispose();
+    }
+
     /** 위쪽 줄에 표시하는 연결 상태 문구. 예: "연결 상태: 정상 · 12ms" */
     String connectionText() {
         return P2PScreenTexts.connection(connectionState, roundTripMillis);
@@ -85,6 +100,7 @@ public class P2PMatchPanel extends JPanel {
         private static final long serialVersionUID = 1L;
 
         StatusLine() {
+            setOpaque(false);
             setPreferredSize(new Dimension(0, STATUS_HEIGHT));
         }
 
@@ -92,9 +108,7 @@ public class P2PMatchPanel extends JPanel {
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g2.setColor(Color.BLACK);
-            g2.fillRect(0, 0, getWidth(), getHeight());
-            g2.setFont(new Font(Font.DIALOG, Font.BOLD, 13));
+            g2.setFont(RetroTheme.mono(Font.BOLD, 13));
             g2.setColor(connectionColor());
             String text = connectionText();
             FontMetrics metrics = g2.getFontMetrics();

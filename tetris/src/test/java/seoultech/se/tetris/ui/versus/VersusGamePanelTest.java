@@ -201,4 +201,16 @@ class VersusGamePanelTest {
         // 틀 위쪽 선
         assertEquals(RetroTheme.CYAN.getRGB(), image.getRGB(right - 60, 10));
     }
+    @Test
+    void 불투명하지_않게_두면_배경을_그리지_않는다() {
+        panel.setOpaque(false);
+        Dimension size = panel.getPreferredSize();
+        panel.setSize(size);
+        layoutAll(panel);
+        BufferedImage image = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB);
+
+        panel.paint(image.getGraphics());
+
+        assertEquals(0, image.getRGB(2, 2) >>> 24);
+    }
 }

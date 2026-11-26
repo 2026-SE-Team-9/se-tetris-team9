@@ -89,7 +89,7 @@ class ScoreboardTablePainterTest {
 
         for (int row = 1; row <= records.size(); row++) {
             assertTrue(hasColor(image, ScoreboardTablePainter.DIFFICULTY_X,
-                    ScoreboardTablePainter.DIFFICULTY_X + 60, row, Color.WHITE), "행 " + row);
+                    ScoreboardTablePainter.DIFFICULTY_X + 60, row, ScoreboardTablePainter.ROW_COLOR), "행 " + row);
         }
     }
 
@@ -101,7 +101,7 @@ class ScoreboardTablePainterTest {
         boolean found = false;
         for (int y = top; y < HEADER_Y + 4 && !found; y++) {
             for (int x = ScoreboardTablePainter.DIFFICULTY_X; x < ScoreboardTablePainter.DIFFICULTY_X + 60; x++) {
-                if ((image.getRGB(x, y) & 0xFFFFFF) == (Color.GRAY.getRGB() & 0xFFFFFF)) {
+                if ((image.getRGB(x, y) & 0xFFFFFF) == (ScoreboardTablePainter.HEADER_COLOR.getRGB() & 0xFFFFFF)) {
                     found = true;
                     break;
                 }
@@ -120,9 +120,9 @@ class ScoreboardTablePainterTest {
 
         int from = ScoreboardTablePainter.DIFFICULTY_X;
         int to = from + 60;
-        assertTrue(hasColor(image, from, to, 2, Color.YELLOW));
-        assertFalse(hasColor(image, from, to, 1, Color.YELLOW));
-        assertTrue(hasColor(image, from, to, 1, Color.WHITE));
+        assertTrue(hasColor(image, from, to, 2, ScoreboardTablePainter.HIGHLIGHT_COLOR));
+        assertFalse(hasColor(image, from, to, 1, ScoreboardTablePainter.HIGHLIGHT_COLOR));
+        assertTrue(hasColor(image, from, to, 1, ScoreboardTablePainter.ROW_COLOR));
     }
 
     @Test
@@ -130,7 +130,7 @@ class ScoreboardTablePainterTest {
         BufferedImage image = draw(new ArrayList<>(), 0);
 
         assertFalse(hasColor(image, ScoreboardTablePainter.DIFFICULTY_X,
-                ScoreboardTablePainter.DIFFICULTY_X + 60, 1, Color.WHITE));
+                ScoreboardTablePainter.DIFFICULTY_X + 60, 1, ScoreboardTablePainter.ROW_COLOR));
         assertEquals(WIDTH, image.getWidth());
     }
 
@@ -145,7 +145,7 @@ class ScoreboardTablePainterTest {
 
         for (int row = 1; row <= 10; row++) {
             assertTrue(hasColor(image, ScoreboardTablePainter.DIFFICULTY_X,
-                    ScoreboardTablePainter.DIFFICULTY_X + 60, row, Color.WHITE), "행 " + row);
+                    ScoreboardTablePainter.DIFFICULTY_X + 60, row, ScoreboardTablePainter.ROW_COLOR), "행 " + row);
         }
     }
 }
