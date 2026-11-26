@@ -226,4 +226,18 @@ class GamePanelTest {
         @Override public boolean isClearing() { return clearing; }
         @Override public boolean[][] getClearingCells() { return clearingCells; }
     }
+
+    @Test
+    void 불투명하지_않게_두면_배경을_그리지_않는다() {
+        GamePanel panel = new GamePanel(new TetrisEngine());
+        panel.setOpaque(false);
+        Dimension size = panel.getPreferredSize();
+        panel.setSize(size);
+        BufferedImage image = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB);
+
+        panel.paint(image.getGraphics());
+
+        // 왼쪽 위 여백은 투명하게 남아 바깥 화면의 배경이 보인다
+        assertEquals(0, image.getRGB(2, 2) >>> 24);
+    }
 }
