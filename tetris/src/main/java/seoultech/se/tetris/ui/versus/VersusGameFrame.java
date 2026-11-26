@@ -6,12 +6,12 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import javax.swing.JFrame;
-import javax.swing.JOptionPane;
 
 import seoultech.se.tetris.config.BattleKeyConfigService;
 import seoultech.se.tetris.config.PropertiesAppSettingsService;
 import seoultech.se.tetris.versus.MatchResult;
 import seoultech.se.tetris.versus.VersusMatch;
+import seoultech.se.tetris.ui.theme.RetroConfirmDialog;
 
 /**
  * 로컬 대전 창. 대전 모델({@link VersusMatch})과 {@link VersusGameSession}을 창에 연결한다.
@@ -45,10 +45,9 @@ public final class VersusGameFrame extends JFrame {
 
                     @Override
                     public boolean confirmQuit() {
-                        int choice = JOptionPane.showConfirmDialog(VersusGameFrame.this,
-                                "현재 대전 진행 상황이 사라집니다. 시작 메뉴로 돌아가시겠습니까?",
-                                "대전 나가기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-                        return choice == JOptionPane.YES_OPTION;
+                        // 확인 창은 게임 화면과 같은 레트로 디자인으로 띄운다
+                        return RetroConfirmDialog.confirm(VersusGameFrame.this, "대전 나가기",
+                                "현재 대전 진행 상황이 사라집니다. 시작 메뉴로 돌아가시겠습니까?");
                     }
                 },
                 onReturnToMenu, onMatchFinished, PropertiesAppSettingsService::new);
