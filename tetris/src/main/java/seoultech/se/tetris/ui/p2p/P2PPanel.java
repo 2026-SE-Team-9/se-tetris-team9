@@ -326,7 +326,14 @@ public class P2PPanel extends JPanel {
 
     private static final int ROOM_ROW_HEIGHT = 38;
     private static final int ROOM_SETTINGS_TOP = 160;
-    private static final int ROOM_START_TOP = 322;
+    /** 대전 설정 두 줄을 감싸는 틀 */
+    static final Rectangle ROOM_SETTINGS_FRAME = new Rectangle(FIELD_LEFT - 10, 148, FIELD_WIDTH + 20, 110);
+    /** 나와 상대의 준비 상태 카드 */
+    static final int READY_TOP = 290;
+    static final int READY_HEIGHT = 44;
+    static final int READY_GAP = 12;
+    /** '게임 시작' 버튼 */
+    static final Rectangle START_BUTTON = new Rectangle(FIELD_LEFT, 350, FIELD_WIDTH, ROOM_ROW_HEIGHT);
 
     /**
      * 대기실. 위에서부터 연결 안내, 연결 상태, 대전 설정(모드·난이도), 준비 상태, '게임 시작' 버튼을 그린다.
@@ -334,30 +341,32 @@ public class P2PPanel extends JPanel {
      */
     private void paintWaitingRoom(Graphics2D g2) {
         title(g2, "대기실", "");
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 18));
+        g2.setFont(RetroTheme.mono(Font.BOLD, 17));
         g2.setColor(SUCCESS);
-        drawCentered(g2, P2PScreenTexts.CONNECTED, 114);
+        drawCentered(g2, P2PScreenTexts.CONNECTED, 112);
 
         ConnectionState connection = state.connectionState();
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 13));
+        g2.setFont(RetroTheme.mono(Font.BOLD, 12));
         g2.setColor(connectionColor(connection));
-        drawCentered(g2, P2PScreenTexts.connection(connection, state.roundTripMillis()), 140);
+        drawCentered(g2, P2PScreenTexts.connection(connection, state.roundTripMillis()), 134);
 
         boolean server = state.role() == Role.SERVER;
+        Rectangle frame = ROOM_SETTINGS_FRAME;
+        RetroTheme.drawFrame(g2, frame.x, frame.y, frame.width, frame.height, RetroTheme.CYAN);
         settingRow(g2, "대전 모드", VersusModeLabels.of(state.mode()), ROOM_SETTINGS_TOP,
                 P2PScreenState.ROOM_ROW_MODE, server);
         settingRow(g2, "난이도", DifficultyLabels.of(state.difficulty()), ROOM_SETTINGS_TOP + ROOM_ROW_HEIGHT + 8,
                 P2PScreenState.ROOM_ROW_DIFFICULTY, server);
         if (!server) {
-            g2.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
+            g2.setFont(RetroTheme.mono(Font.PLAIN, 12));
             g2.setColor(MUTED);
-            drawCentered(g2, P2PScreenTexts.CLIENT_SETTINGS_NOTE, ROOM_SETTINGS_TOP + 2 * ROOM_ROW_HEIGHT + 28);
+            drawCentered(g2, P2PScreenTexts.CLIENT_SETTINGS_NOTE, frame.y + frame.height + 18);
         }
 
-        paintReadyStatus(g2, ROOM_START_TOP - 14);
+        paintReadyStatus(g2);
         paintStartButton(g2, server);
 
-        g2.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
+        g2.setFont(RetroTheme.mono(Font.PLAIN, 12));
         g2.setColor(MUTED);
         drawCentered(g2, P2PScreenTexts.START_GUIDE, getHeight() - 52);
         hint(g2, P2PScreenTexts.roomHint(state.role()));
@@ -367,39 +376,56 @@ public class P2PPanel extends JPanel {
     private void settingRow(Graphics2D g2, String label, String value, int top, int row, boolean editable) {
         boolean selected = editable && state.roomRow() == row;
         box(g2, FIELD_LEFT, top, FIELD_WIDTH, ROOM_ROW_HEIGHT, selected ? SELECTED : OUTLINE);
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 14));
+        g2.setFont(RetroTheme.mono(Font.BOLD, 13));
         g2.setColor(MUTED);
         g2.drawString(label, FIELD_LEFT + 16, top + 25);
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
-        g2.setColor(selected ? SELECTED : Color.WHITE);
+        g2.setFont(RetroTheme.mono(Font.BOLD, 16));
+        g2.setColor(selected ? SELECTED : RetroTheme.TEXT);
         String text = P2PScreenTexts.choice(value, selected);
         FontMetrics metrics = g2.getFontMetrics();
         int valueCenter = FIELD_LEFT + 110 + (FIELD_WIDTH - 110) / 2;
         g2.drawString(text, valueCenter - metrics.stringWidth(text) / 2, top + 25);
     }
 
-    /** 나와 상대의 준비 상태를 왼쪽·오른쪽 절반에 그린다. 준비를 마쳤으면 초록이다. */
-    private void paintReadyStatus(Graphics2D g2, int y) {
-        int half = FIELD_WIDTH / 2;
-        readyLabel(g2, "나", state.isReady(), FIELD_LEFT, half, y);
-        readyLabel(g2, "상대", state.isOpponentReady(), FIELD_LEFT + half, half, y);
+    /** 나({@code mine})와 상대의 준비 상태 카드 위치. 왼쪽이 나, 오른쪽이 상대다 */
+    static Rectangle readyCard(boolean mine) {
+        int width = (FIELD_WIDTH - READY_GAP) / 2;
+        return new Rectangle(mine ? FIELD_LEFT : FIELD_LEFT + width + READY_GAP, READY_TOP, width, READY_HEIGHT);
     }
 
-    private static void readyLabel(Graphics2D g2, String who, boolean ready, int left, int width, int y) {
-        String text = who + "  " + P2PScreenTexts.readyStatus(ready);
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 15));
-        g2.setColor(ready ? SUCCESS : MUTED);
+    /** 나와 상대의 준비 상태를 카드 두 장에 그린다. 준비를 마친 쪽은 초록 틀과 초록 글자다. */
+    private void paintReadyStatus(Graphics2D g2) {
+        readyCard(g2, "나", state.isReady(), readyCard(true));
+        readyCard(g2, "상대", state.isOpponentReady(), readyCard(false));
+    }
+
+    private void readyCard(Graphics2D g2, String who, boolean ready, Rectangle card) {
+        RetroTheme.drawFrame(g2, card.x, card.y, card.width, card.height, ready ? SUCCESS : OUTLINE);
+        g2.setFont(RetroTheme.mono(Font.BOLD, 12));
+        g2.setColor(MUTED);
+        g2.drawString(who, card.x + 12, card.y + 27);
+        g2.setFont(RetroTheme.mono(Font.BOLD, 15));
+        g2.setColor(ready ? SUCCESS : RetroTheme.TEXT);
+        String status = P2PScreenTexts.readyStatus(ready);
         FontMetrics metrics = g2.getFontMetrics();
-        g2.drawString(text, left + (width - metrics.stringWidth(text)) / 2, y);
+        g2.drawString(status, card.x + card.width - 14 - metrics.stringWidth(status), card.y + 28);
     }
 
-    /** '게임 시작' 버튼. 참여자는 이 버튼만 고르므로 항상 선택된 것으로 그린다. 이미 눌렀으면 "준비 취소"를 초록으로 그린다. */
+    /**
+     * '게임 시작' 버튼. 선택하면 시작 메뉴와 같은 노란 상자와 픽셀 화살표로 그린다. 참여자는 이 버튼만 고르므로
+     * 항상 선택된 것으로 그린다. 이미 눌렀으면 "준비 취소"를 초록으로 그린다.
+     */
     private void paintStartButton(Graphics2D g2, boolean server) {
+        Rectangle button = START_BUTTON;
         boolean selected = !server || state.roomRow() == P2PScreenState.ROOM_ROW_START;
-        box(g2, FIELD_LEFT, ROOM_START_TOP, FIELD_WIDTH, ROOM_ROW_HEIGHT, selected ? SELECTED : OUTLINE);
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 18));
-        g2.setColor(state.isReady() ? SUCCESS : selected ? SELECTED : Color.WHITE);
-        drawCentered(g2, P2PScreenTexts.startButton(state.isReady()), ROOM_START_TOP + 26);
+        if (selected) {
+            RetroTheme.drawSelection(g2, button.x, button.y, button.width, button.height);
+        } else {
+            box(g2, button.x, button.y, button.width, button.height, OUTLINE);
+        }
+        g2.setFont(RetroTheme.mono(Font.BOLD, 18));
+        g2.setColor(state.isReady() ? SUCCESS : selected ? SELECTED : RetroTheme.TEXT);
+        drawCentered(g2, P2PScreenTexts.startButton(state.isReady()), button.y + 26);
     }
 
     /** 연결 상태의 색. 정상은 초록, 지연은 노랑, 그보다 나쁘면 빨강 */

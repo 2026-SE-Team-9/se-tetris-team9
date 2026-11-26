@@ -347,6 +347,32 @@ class P2PPanelTest {
     }
 
     @Test
+    void 대기실은_설정_틀_준비_카드_게임_시작_버튼을_그린다() {
+        state.screen = Screen.WAITING_ROOM;
+        state.role = Role.CLIENT;
+        state.opponentReady = true;
+        BufferedImage image = render();
+
+        Rectangle settings = P2PPanel.ROOM_SETTINGS_FRAME;
+        Rectangle mine = P2PPanel.readyCard(true);
+        Rectangle opponent = P2PPanel.readyCard(false);
+        Rectangle start = P2PPanel.START_BUTTON;
+        assertEquals(RetroTheme.CYAN.getRGB(), image.getRGB(settings.x + settings.width / 2, settings.y));
+        // 준비를 마친 상대만 초록 틀
+        assertEquals(P2PPanel.SUCCESS.getRGB(), image.getRGB(opponent.x + opponent.width / 2, opponent.y));
+        assertTrue(image.getRGB(mine.x + mine.width / 2, mine.y) != P2PPanel.SUCCESS.getRGB());
+        // 참여자는 게임 시작 버튼만 고르므로 항상 노란 상자다
+        assertEquals(P2PPanel.SELECTED.getRGB(), image.getRGB(start.x + start.width / 2, start.y));
+
+        // 방장이 모드 줄을 고르고 있으면 게임 시작 버튼은 강조하지 않는다
+        state.role = Role.SERVER;
+        state.roomRow = P2PScreenState.ROOM_ROW_MODE;
+        image = render();
+        assertTrue(image.getRGB(start.x + start.width / 2, start.y) != P2PPanel.SELECTED.getRGB());
+        assertTrue(mine.y > settings.y + settings.height && start.y > mine.y + mine.height);
+    }
+
+    @Test
     void 상태와_동작이_있어야_만들_수_있다() {
         assertThrows(NullPointerException.class, () -> new P2PPanel(null, actions));
         assertThrows(NullPointerException.class, () -> new P2PPanel(state, null));
