@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import seoultech.se.tetris.config.P2PSettingsService.RecentPeer;
 import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.ui.p2p.P2PScreenState.InputError;
+import seoultech.se.tetris.ui.theme.RetroTheme;
 import seoultech.se.tetris.ui.p2p.P2PScreenState.Screen;
 import seoultech.se.tetris.versus.VersusMode;
 import seoultech.se.tetris.versus.p2p.CloseReason;
@@ -275,6 +277,22 @@ class P2PPanelTest {
                 }
             }
         });
+    }
+
+    @Test
+    void 첫_화면은_레트로_배경과_하늘색_틀에_선택_항목을_노란_상자로_그린다() {
+        state.menuIndex = 1;
+        BufferedImage image = render();
+
+        Rectangle frame = P2PPanel.MENU_FRAME;
+        Rectangle first = P2PPanel.menuSelectionBounds(0);
+        Rectangle second = P2PPanel.menuSelectionBounds(1);
+        assertEquals(RetroTheme.CYAN.getRGB(),
+                image.getRGB(frame.x + frame.width / 2, frame.y));
+        assertEquals(P2PPanel.SELECTED.getRGB(), image.getRGB(second.x + second.width / 2, second.y));
+        assertTrue(image.getRGB(first.x + first.width / 2, first.y) != P2PPanel.SELECTED.getRGB());
+        Color corner = new Color(image.getRGB(5, 5));
+        assertTrue(corner.getBlue() > corner.getRed());
     }
 
     @Test

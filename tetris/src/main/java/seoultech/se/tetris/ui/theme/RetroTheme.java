@@ -35,6 +35,9 @@ public final class RetroTheme {
     /** 선택한 항목과 중요한 값에 쓰는 노랑 */
     public static final Color YELLOW = new Color(0xFF, 0xE5, 0x3E);
 
+    /** 연결 성공·준비 완료처럼 좋은 상태에 쓰는 초록 */
+    public static final Color GREEN = new Color(0x3E, 0xFF, 0x8B);
+
     /** 기본 글자색 */
     public static final Color TEXT = new Color(0xF2, 0xF2, 0xFF);
     /** 선택하지 않은 항목과 보조 문구의 글자색 */

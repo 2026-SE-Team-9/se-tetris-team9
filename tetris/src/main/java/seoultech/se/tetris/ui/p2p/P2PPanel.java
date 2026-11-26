@@ -7,7 +7,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import java.awt.Rectangle;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.List;
@@ -17,6 +17,7 @@ import javax.swing.JPanel;
 
 import seoultech.se.tetris.config.P2PSettingsService.RecentPeer;
 import seoultech.se.tetris.ui.DifficultyLabels;
+import seoultech.se.tetris.ui.theme.RetroTheme;
 import seoultech.se.tetris.ui.versus.VersusModeLabels;
 import seoultech.se.tetris.versus.p2p.CloseReason;
 import seoultech.se.tetris.versus.p2p.ConnectionState;
@@ -28,18 +29,27 @@ import seoultech.se.tetris.versus.p2p.Role;
  * <p>그릴 값은 {@link P2PScreenState}에서 읽고, 눌린 키는 {@link P2PScreenActions}에 알린다.
  * 연결과 화면 흐름은 두 인터페이스를 구현하는 쪽이 맡으며, 상태가 바뀌면 그쪽이 {@link #repaint()}를 호출한다.
  *
- * <p>시작 메뉴와 같은 크기와 색을 쓴다. 입력칸도 직접 그려 모든 조작을 키보드로 한다.
+ * <p>시작 메뉴와 같은 크기와 레트로 디자인({@link RetroTheme})을 쓴다. 입력칸도 직접 그려 모든 조작을 키보드로 한다.
  */
 public class P2PPanel extends JPanel {
 
     private static final long serialVersionUID = 1L;
 
-    static final Color SELECTED = Color.YELLOW;
-    static final Color ERROR = new Color(255, 110, 110);
-    static final Color SUCCESS = new Color(120, 230, 140);
-    private static final Color SURFACE = new Color(25, 25, 25);
-    private static final Color OUTLINE = new Color(75, 75, 75);
-    private static final Color MUTED = new Color(170, 170, 170);
+    /** 선택한 항목과 입력칸 */
+    static final Color SELECTED = RetroTheme.YELLOW;
+    /** 실패·끊김 안내 */
+    static final Color ERROR = RetroTheme.PINK;
+    /** 연결 성공·준비 완료 */
+    static final Color SUCCESS = RetroTheme.GREEN;
+    private static final Color SURFACE = RetroTheme.SURFACE;
+    /** 선택하지 않은 입력칸·버튼의 테두리. 배경 위에서 옅게 보이는 남보라 */
+    private static final Color OUTLINE = new Color(0x3A, 0x34, 0x6E);
+    private static final Color MUTED = RetroTheme.MUTED;
+
+    /** 첫 화면 메뉴를 감싸는 틀과 항목 위치 */
+    static final Rectangle MENU_FRAME = new Rectangle(70, 160, 340, 202);
+    static final int MENU_FIRST_BASELINE = 200;
+    static final int MENU_SPACING = 68;
 
     private static final int FIELD_LEFT = 60;
     private static final int FIELD_WIDTH = 360;
@@ -53,7 +63,7 @@ public class P2PPanel extends JPanel {
     public P2PPanel(P2PScreenState state, P2PScreenActions actions) {
         this.state = Objects.requireNonNull(state, "state");
         this.actions = Objects.requireNonNull(actions, "actions");
-        setBackground(Color.BLACK);
+        setBackground(RetroTheme.BACKGROUND_TOP);
         // 시작 메뉴와 같은 크기로 두어 화면 전환 시 창 크기가 바뀌지 않게 한다
         setPreferredSize(new Dimension(480, 540));
         setFocusable(true);
@@ -95,8 +105,8 @@ public class P2PPanel extends JPanel {
     protected void paintComponent(Graphics graphics) {
         super.paintComponent(graphics);
         Graphics2D g2 = (Graphics2D) graphics.create();
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        RetroTheme.applyRenderingHints(g2);
+        RetroTheme.paintBackground(g2, getWidth(), getHeight());
         switch (state.screen()) {
             case MENU -> paintMenu(g2);
             case HOST -> paintHost(g2);
@@ -110,29 +120,43 @@ public class P2PPanel extends JPanel {
     // 첫 화면
     // ------------------------------------------------------------------
 
+    /** {@code index}번째 첫 화면 항목을 선택했을 때 그리는 강조 상자의 위치 */
+    static Rectangle menuSelectionBounds(int index) {
+        int baseline = MENU_FIRST_BASELINE + index * MENU_SPACING;
+        return new Rectangle(MENU_FRAME.x + 20, baseline - 24, MENU_FRAME.width - 40, 34);
+    }
+
+    /**
+     * 첫 화면. 하늘색 틀 안에 방 생성 / 참여 / 뒤로 가기와 각 설명을 그린다. 선택한 항목은 시작 메뉴와 같은
+     * 노란 상자와 픽셀 화살표로 표시하고, 설명은 선택한 항목만 밝게 보인다.
+     */
     private void paintMenu(Graphics2D g2) {
         title(g2, "P2P 대전", "방을 만들거나 상대의 방에 참여하세요");
 
+        RetroTheme.drawFrame(g2, MENU_FRAME.x, MENU_FRAME.y, MENU_FRAME.width, MENU_FRAME.height, RetroTheme.CYAN);
         List<String> items = P2PScreenTexts.MENU_ITEMS;
-        int y = 210;
         for (int i = 0; i < items.size(); i++) {
+            int y = MENU_FIRST_BASELINE + i * MENU_SPACING;
             boolean selected = i == state.menuIndex();
-            g2.setFont(new Font(Font.DIALOG, Font.BOLD, 22));
-            g2.setColor(selected ? SELECTED : Color.GRAY);
-            drawCentered(g2, (selected ? "▶ " : "   ") + items.get(i), y);
+            if (selected) {
+                Rectangle box = menuSelectionBounds(i);
+                RetroTheme.drawSelection(g2, box.x, box.y, box.width, box.height);
+            }
+            g2.setFont(RetroTheme.mono(Font.BOLD, 20));
+            g2.setColor(selected ? SELECTED : MUTED);
+            drawCentered(g2, items.get(i), y);
             String description = P2PScreenTexts.MENU_DESCRIPTIONS.get(i);
             if (!description.isEmpty()) {
-                g2.setFont(new Font(Font.DIALOG, Font.PLAIN, 13));
-                g2.setColor(selected ? Color.WHITE : Color.DARK_GRAY);
-                drawCentered(g2, description, y + 22);
+                g2.setFont(RetroTheme.mono(Font.PLAIN, 12));
+                g2.setColor(selected ? RetroTheme.TEXT : OUTLINE);
+                drawCentered(g2, description, y + 28);
             }
-            y += 68;
         }
 
         CloseReason reason = state.closeReason();
         String notice = reason == null ? null : P2PScreenTexts.close(reason);
         if (notice != null) {
-            g2.setFont(new Font(Font.DIALOG, Font.BOLD, 15));
+            g2.setFont(RetroTheme.mono(Font.BOLD, 14));
             g2.setColor(P2PScreenTexts.isCloseError(reason) ? ERROR : MUTED);
             drawCentered(g2, notice, 450);
         }
@@ -339,29 +363,31 @@ public class P2PPanel extends JPanel {
     // 공통
     // ------------------------------------------------------------------
 
+    /** 분홍 제목과 하늘색 그림자, 그 아래 부제. 네 화면이 같은 위치에 그린다. */
     private void title(Graphics2D g2, String title, String subtitle) {
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 32));
-        g2.setColor(Color.CYAN);
-        drawCentered(g2, title, 80);
+        g2.setFont(RetroTheme.mono(Font.BOLD, 32));
+        RetroTheme.drawShadowText(g2, title, 0, getWidth(), 80, 3);
         if (!subtitle.isEmpty()) {
-            g2.setFont(new Font(Font.DIALOG, Font.PLAIN, 15));
-            g2.setColor(Color.WHITE);
-            drawCentered(g2, subtitle, 112);
+            g2.setFont(RetroTheme.mono(Font.PLAIN, 14));
+            g2.setColor(RetroTheme.TEXT);
+            drawCentered(g2, subtitle, 114);
         }
     }
 
     private void hint(Graphics2D g2, String text) {
-        g2.setFont(new Font(Font.DIALOG, Font.PLAIN, 13));
+        g2.setFont(RetroTheme.mono(Font.PLAIN, 12));
         g2.setColor(MUTED);
         drawCentered(g2, text, getHeight() - 24);
     }
 
+    /** 각진 상자. 선택한 칸은 노란 테두리와 옅은 노란 바탕으로 그린다. */
     private static void box(Graphics2D g2, int x, int y, int width, int height, Color border) {
-        g2.setColor(SURFACE);
-        g2.fillRoundRect(x, y, width, height, 10, 10);
-        g2.setStroke(new BasicStroke(border == SELECTED ? 2f : 1f));
+        boolean selected = border == SELECTED;
+        g2.setColor(selected ? RetroTheme.withAlpha(SELECTED, 28) : SURFACE);
+        g2.fillRect(x, y, width, height);
+        g2.setStroke(new BasicStroke(selected ? 2f : 1.5f));
         g2.setColor(border);
-        g2.drawRoundRect(x, y, width, height, 10, 10);
+        g2.drawRect(x, y, width, height);
     }
 
     private void drawCentered(Graphics2D g2, String text, int y) {
