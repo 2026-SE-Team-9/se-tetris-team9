@@ -7,6 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.time.Duration;
@@ -15,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.ui.game.GamePanel;
+import seoultech.se.tetris.ui.theme.RetroTheme;
 import seoultech.se.tetris.versus.EndReason;
 import seoultech.se.tetris.versus.LocalMatch;
 import seoultech.se.tetris.versus.MatchResult;
@@ -82,7 +86,7 @@ class VersusGamePanelTest {
     }
 
     /** 위쪽 줄 오른쪽(남은 시간 자리)에 주어진 색의 픽셀이 있는지 */
-    private static boolean timerAreaHas(VersusGamePanel target, java.awt.Color color) {
+    private static boolean timerAreaHas(VersusGamePanel target, Color color) {
         Dimension size = target.getPreferredSize();
         target.setSize(size);
         target.doLayout();
@@ -130,5 +134,71 @@ class VersusGamePanelTest {
         assertThrows(NullPointerException.class, () -> new VersusGamePanel(model, null, p2));
         assertThrows(NullPointerException.class, () -> new VersusGamePanel(model, p1, null));
         assertThrows(NullPointerException.class, () -> panel.board(null));
+    }
+
+    // ------------------------------------------------------------------
+    // 레트로 디자인
+    // ------------------------------------------------------------------
+
+    private static void layoutAll(Container container) {
+        container.doLayout();
+        for (Component child : container.getComponents()) {
+            if (child instanceof Container nested) {
+                layoutAll(nested);
+            }
+        }
+    }
+
+    private BufferedImage renderAll(VersusGamePanel target) {
+        Dimension size = target.getPreferredSize();
+        target.setSize(size);
+        layoutAll(target);
+        BufferedImage image = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_RGB);
+        target.printAll(image.getGraphics());
+        return image;
+    }
+
+    @Test
+    void 두_보드는_배경을_그리지_않고_화면_전체에_같은_배경이_이어진다() {
+        assertFalse(p1.isOpaque());
+        assertFalse(p2.isOpaque());
+
+        BufferedImage image = renderAll(panel);
+        // 두 보드 사이 틈과 머리줄 왼쪽 위는 검정이 아니라 레트로 배경이다
+        int gapX = (p1.getParent().getX() + p1.getParent().getWidth() + p2.getParent().getX()) / 2;
+        int gapY = p1.getParent().getY() + 300;
+        for (int[] point : new int[][] {{gapX, gapY}, {5, 5}}) {
+            Color color = new Color(image.getRGB(point[0], point[1]));
+            assertTrue(color.getBlue() > color.getRed() && color.getBlue() > 0, color.toString());
+        }
+    }
+
+    @Test
+    void 이름표는_P1_분홍_P2_하늘색이다() {
+        assertEquals(RetroTheme.PINK, VersusGamePanel.playerColor(Side.P1));
+        assertEquals(RetroTheme.CYAN, VersusGamePanel.playerColor(Side.P2));
+
+        BufferedImage image = renderAll(panel);
+        int labelY0 = 76;
+        boolean pink = false;
+        for (int x = 0; x < image.getWidth() / 2 && !pink; x++) {
+            for (int y = labelY0; y < labelY0 + 30; y++) {
+                if (image.getRGB(x, y) == RetroTheme.PINK.getRGB()) {
+                    pink = true;
+                    break;
+                }
+            }
+        }
+        assertTrue(pink);
+    }
+
+    @Test
+    void 남은_시간은_머리줄_오른쪽_하늘색_틀_안에_그린다() {
+        VersusGamePanel timed = timeLimitPanel(0);
+        BufferedImage image = renderAll(timed);
+        int right = image.getWidth() - 24;
+
+        // 틀 위쪽 선
+        assertEquals(RetroTheme.CYAN.getRGB(), image.getRGB(right - 60, 10));
     }
 }

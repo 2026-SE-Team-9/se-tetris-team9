@@ -223,7 +223,10 @@ public class GamePanel extends JPanel {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        RetroTheme.paintBackground(g2, getWidth(), getHeight());
+        // 대전 화면처럼 바깥 화면이 배경을 이어서 그리는 경우에는 불투명하지 않게 두어 배경을 그리지 않는다
+        if (isOpaque()) {
+            RetroTheme.paintBackground(g2, getWidth(), getHeight());
+        }
 
         drawBoard(g2);
         drawSidePanel(g2);
