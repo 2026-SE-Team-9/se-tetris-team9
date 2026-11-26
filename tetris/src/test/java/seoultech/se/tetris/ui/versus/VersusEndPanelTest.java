@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -14,6 +15,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import seoultech.se.tetris.ui.theme.RetroTheme;
 import seoultech.se.tetris.versus.EndReason;
 import seoultech.se.tetris.versus.MatchResult;
 import seoultech.se.tetris.versus.Side;
@@ -97,6 +99,26 @@ class VersusEndPanelTest {
         render(panel);
 
         assertTrue(log.isEmpty());
+    }
+
+    @Test
+    void 레트로_배경과_노란_선택_상자로_메뉴를_그린다() {
+        VersusEndPanel panel = panel(MatchResult.win(Side.P1, EndReason.TOP_OUT, 1200, 800));
+        BufferedImage image = render(panel);
+
+        Rectangle first = VersusEndPanel.selectionBounds(0);
+        Rectangle second = VersusEndPanel.selectionBounds(1);
+        assertEquals(RetroTheme.YELLOW.getRGB(), image.getRGB(first.x + first.width / 2, first.y));
+        assertFalse(image.getRGB(second.x + second.width / 2, second.y) == RetroTheme.YELLOW.getRGB());
+        // 진 쪽 카드는 하늘색 틀이다
+        assertEquals(RetroTheme.CYAN, cardTopBorder(panel, image, Side.P2));
+        // 배경은 검정이 아니라 남보라다
+        Color corner = new Color(image.getRGB(5, 5));
+        assertTrue(corner.getBlue() > corner.getRed());
+
+        panel.handleKey(KeyEvent.VK_DOWN);
+        image = render(panel);
+        assertEquals(RetroTheme.YELLOW.getRGB(), image.getRGB(second.x + second.width / 2, second.y));
     }
 
     @Test
