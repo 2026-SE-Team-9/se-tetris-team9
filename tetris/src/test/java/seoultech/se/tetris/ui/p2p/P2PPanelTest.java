@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import seoultech.se.tetris.config.P2PSettingsService.RecentPeer;
 import seoultech.se.tetris.engine.Difficulty;
 import seoultech.se.tetris.ui.p2p.P2PScreenState.InputError;
+import seoultech.se.tetris.ui.theme.RetroTheme;
 import seoultech.se.tetris.ui.p2p.P2PScreenState.Screen;
 import seoultech.se.tetris.versus.VersusMode;
 import seoultech.se.tetris.versus.p2p.CloseReason;
@@ -275,6 +277,99 @@ class P2PPanelTest {
                 }
             }
         });
+    }
+
+    @Test
+    void 첫_화면은_레트로_배경과_하늘색_틀에_선택_항목을_노란_상자로_그린다() {
+        state.menuIndex = 1;
+        BufferedImage image = render();
+
+        Rectangle frame = P2PPanel.MENU_FRAME;
+        Rectangle first = P2PPanel.menuSelectionBounds(0);
+        Rectangle second = P2PPanel.menuSelectionBounds(1);
+        assertEquals(RetroTheme.CYAN.getRGB(),
+                image.getRGB(frame.x + frame.width / 2, frame.y));
+        assertEquals(P2PPanel.SELECTED.getRGB(), image.getRGB(second.x + second.width / 2, second.y));
+        assertTrue(image.getRGB(first.x + first.width / 2, first.y) != P2PPanel.SELECTED.getRGB());
+        Color corner = new Color(image.getRGB(5, 5));
+        assertTrue(corner.getBlue() > corner.getRed());
+    }
+
+    @Test
+    void 방_생성은_하늘색_틀_안에_주소를_그리고_실패는_분홍으로_알린다() {
+        state.screen = Screen.HOST;
+        state.hostAddresses = List.of("192.168.0.12", "10.0.0.4");
+        Rectangle frame = panel.hostFrame();
+        BufferedImage image = render();
+
+        assertEquals(RetroTheme.CYAN.getRGB(), image.getRGB(frame.x + frame.width / 2, frame.y));
+        // 주소가 두 개면 한 개일 때보다 틀이 길다
+        state.hostAddresses = List.of("192.168.0.12");
+        assertTrue(panel.hostFrame().height < frame.height);
+
+        state.failure = FailReason.PORT_UNAVAILABLE;
+        image = render();
+        boolean pink = false;
+        for (int x = 0; x < image.getWidth() && !pink; x++) {
+            for (int y = frame.y + frame.height; y < image.getHeight() - 40; y++) {
+                if (image.getRGB(x, y) == P2PPanel.ERROR.getRGB()) {
+                    pink = true;
+                    break;
+                }
+            }
+        }
+        assertTrue(pink);
+        // 안내는 화면 안에 들어온다
+        assertTrue(image.getRGB(2, frame.y + frame.height + 46 - 4) != P2PPanel.ERROR.getRGB());
+    }
+
+    @Test
+    void 참여는_선택한_접속_버튼과_최근_기록을_노란색으로_그린다() {
+        state.screen = Screen.JOIN;
+        state.recentPeers = peers(3);
+        state.joinRow = P2PScreenState.JOIN_ROW_CONNECT;
+        BufferedImage image = render();
+
+        Rectangle button = P2PPanel.CONNECT_BUTTON;
+        Rectangle frame = P2PPanel.RECENT_FRAME;
+        assertEquals(P2PPanel.SELECTED.getRGB(), image.getRGB(button.x + button.width / 2, button.y));
+        assertEquals(RetroTheme.CYAN.getRGB(), image.getRGB(frame.x + frame.width / 2, frame.y));
+        Rectangle firstPeer = P2PPanel.recentCell(0);
+        assertTrue(new Color(image.getRGB(firstPeer.x + 1, firstPeer.y + 1)).getRed() < 100);
+
+        // 첫 기록을 고르면 그 칸에 노란 줄이 깔리고 접속 버튼은 강조가 풀린다
+        state.joinRow = P2PScreenState.JOIN_ROW_CONNECT + 1;
+        image = render();
+        assertTrue(new Color(image.getRGB(firstPeer.x + 1, firstPeer.y + 1)).getRed() > 40);
+        assertTrue(image.getRGB(button.x + button.width / 2, button.y) != P2PPanel.SELECTED.getRGB());
+        // 기록은 틀 안에 들어온다
+        assertTrue(P2PPanel.recentCell(9).y + P2PPanel.recentCell(9).height <= frame.y + frame.height);
+    }
+
+    @Test
+    void 대기실은_설정_틀_준비_카드_게임_시작_버튼을_그린다() {
+        state.screen = Screen.WAITING_ROOM;
+        state.role = Role.CLIENT;
+        state.opponentReady = true;
+        BufferedImage image = render();
+
+        Rectangle settings = P2PPanel.ROOM_SETTINGS_FRAME;
+        Rectangle mine = P2PPanel.readyCard(true);
+        Rectangle opponent = P2PPanel.readyCard(false);
+        Rectangle start = P2PPanel.START_BUTTON;
+        assertEquals(RetroTheme.CYAN.getRGB(), image.getRGB(settings.x + settings.width / 2, settings.y));
+        // 준비를 마친 상대만 초록 틀
+        assertEquals(P2PPanel.SUCCESS.getRGB(), image.getRGB(opponent.x + opponent.width / 2, opponent.y));
+        assertTrue(image.getRGB(mine.x + mine.width / 2, mine.y) != P2PPanel.SUCCESS.getRGB());
+        // 참여자는 게임 시작 버튼만 고르므로 항상 노란 상자다
+        assertEquals(P2PPanel.SELECTED.getRGB(), image.getRGB(start.x + start.width / 2, start.y));
+
+        // 방장이 모드 줄을 고르고 있으면 게임 시작 버튼은 강조하지 않는다
+        state.role = Role.SERVER;
+        state.roomRow = P2PScreenState.ROOM_ROW_MODE;
+        image = render();
+        assertTrue(image.getRGB(start.x + start.width / 2, start.y) != P2PPanel.SELECTED.getRGB());
+        assertTrue(mine.y > settings.y + settings.height && start.y > mine.y + mine.height);
     }
 
     @Test
