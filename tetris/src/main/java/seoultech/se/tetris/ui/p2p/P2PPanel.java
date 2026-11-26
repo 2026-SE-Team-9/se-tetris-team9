@@ -167,36 +167,58 @@ public class P2PPanel extends JPanel {
     // 방 생성
     // ------------------------------------------------------------------
 
+    /** 방 생성 화면의 주소 틀 위쪽 y 좌표 */
+    static final int HOST_FRAME_TOP = 156;
+
+    /** 주소 틀의 위치. 주소가 여러 개면 줄 수만큼 길어진다 */
+    Rectangle hostFrame() {
+        int lines = Math.max(1, state.hostAddresses().size());
+        return new Rectangle(FIELD_LEFT - 20, HOST_FRAME_TOP, FIELD_WIDTH + 40, 52 + lines * 36);
+    }
+
+    /**
+     * 방 생성. 하늘색 틀 안에 "내 주소"와 이 PC의 IPv4 주소·포트를 크게 그리고, 그 아래에 진행 단계나 실패 안내를 그린다.
+     */
     private void paintHost(Graphics2D g2) {
         title(g2, "방 생성", "상대에게 아래 주소와 포트를 알려주세요");
 
+        Rectangle frame = hostFrame();
+        RetroTheme.drawFrame(g2, frame.x, frame.y, frame.width, frame.height, RetroTheme.CYAN);
+        g2.setFont(RetroTheme.mono(Font.BOLD, 12));
+        g2.setColor(MUTED);
+        g2.drawString("내 주소 : 포트", frame.x + 16, frame.y + 24);
+
         List<String> addresses = P2PScreenTexts.hostAddressLines(state.hostAddresses(), state.hostPort());
-        int boxHeight = 30 + addresses.size() * 34;
-        box(g2, FIELD_LEFT, 170, FIELD_WIDTH, boxHeight, OUTLINE);
         boolean noAddress = state.hostAddresses().isEmpty();
-        int y = 205;
+        int y = frame.y + 60;
         for (String line : addresses) {
-            g2.setFont(noAddress ? new Font(Font.DIALOG, Font.PLAIN, 15) : new Font(Font.MONOSPACED, Font.BOLD, 24));
-            g2.setColor(noAddress ? MUTED : Color.WHITE);
+            g2.setFont(noAddress ? RetroTheme.mono(Font.PLAIN, 14) : RetroTheme.mono(Font.BOLD, 24));
+            g2.setColor(noAddress ? MUTED : RetroTheme.TEXT);
             drawCentered(g2, line, y);
-            y += 34;
+            y += 36;
         }
 
-        paintProgress(g2, 170 + boxHeight + 50);
+        paintProgress(g2, frame.y + frame.height + 46);
         hint(g2, state.failure() != null ? "Enter 다시 시도   Esc 취소" : "Esc 취소");
     }
 
-    /** 실패 안내(붉은색)가 있으면 그것을, 없으면 진행 단계(하늘색)를 가운데에 그린다. */
+    /**
+     * 실패 안내(분홍)가 있으면 그것을, 없으면 진행 단계(하늘색)를 가운데에 그린다. 긴 안내도 화면 안에 들어오도록
+     * 작은 고정폭 글꼴로 쓰고, 앞에 상태 표시 사각형을 둔다.
+     */
     private void paintProgress(Graphics2D g2, int y) {
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 15));
+        g2.setFont(RetroTheme.mono(Font.BOLD, 13));
         String error = errorText();
-        if (error != null) {
-            g2.setColor(ERROR);
-            drawCentered(g2, error, y);
-        } else if (state.step() != null) {
-            g2.setColor(Color.CYAN);
-            drawCentered(g2, P2PScreenTexts.step(state.step()), y);
+        String text = error != null ? error : state.step() == null ? null : P2PScreenTexts.step(state.step());
+        if (text == null) {
+            return;
         }
+        Color color = error != null ? ERROR : RetroTheme.CYAN;
+        int width = g2.getFontMetrics().stringWidth(text);
+        int x = (getWidth() - width) / 2 + 7;
+        g2.setColor(color);
+        g2.fillRect(x - 14, y - 9, 8, 8);
+        g2.drawString(text, x, y);
     }
 
     /** 연결 실패와 잘못된 입력 중 표시할 안내. 없으면 {@code null} */

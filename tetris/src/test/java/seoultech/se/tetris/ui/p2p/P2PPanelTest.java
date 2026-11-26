@@ -296,6 +296,34 @@ class P2PPanelTest {
     }
 
     @Test
+    void 방_생성은_하늘색_틀_안에_주소를_그리고_실패는_분홍으로_알린다() {
+        state.screen = Screen.HOST;
+        state.hostAddresses = List.of("192.168.0.12", "10.0.0.4");
+        Rectangle frame = panel.hostFrame();
+        BufferedImage image = render();
+
+        assertEquals(RetroTheme.CYAN.getRGB(), image.getRGB(frame.x + frame.width / 2, frame.y));
+        // 주소가 두 개면 한 개일 때보다 틀이 길다
+        state.hostAddresses = List.of("192.168.0.12");
+        assertTrue(panel.hostFrame().height < frame.height);
+
+        state.failure = FailReason.PORT_UNAVAILABLE;
+        image = render();
+        boolean pink = false;
+        for (int x = 0; x < image.getWidth() && !pink; x++) {
+            for (int y = frame.y + frame.height; y < image.getHeight() - 40; y++) {
+                if (image.getRGB(x, y) == P2PPanel.ERROR.getRGB()) {
+                    pink = true;
+                    break;
+                }
+            }
+        }
+        assertTrue(pink);
+        // 안내는 화면 안에 들어온다
+        assertTrue(image.getRGB(2, frame.y + frame.height + 46 - 4) != P2PPanel.ERROR.getRGB());
+    }
+
+    @Test
     void 상태와_동작이_있어야_만들_수_있다() {
         assertThrows(NullPointerException.class, () -> new P2PPanel(null, actions));
         assertThrows(NullPointerException.class, () -> new P2PPanel(state, null));
