@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ import javax.swing.JPanel;
 import org.junit.jupiter.api.Test;
 
 import seoultech.se.tetris.ui.menu.MenuItem;
+import seoultech.se.tetris.ui.theme.RetroTheme;
 
 class P2PExitMenuPanelTest {
 
@@ -75,6 +77,23 @@ class P2PExitMenuPanelTest {
         assertTrue(alpha < 200);
         menu.handleKey(KeyEvent.VK_F1);
         assertDoesNotThrow(this::render);
+    }
+
+    @Test
+    void 분홍_틀_안에_선택_항목을_노란_상자로_그린다() {
+        BufferedImage image = render();
+
+        Rectangle frame = menu.menuFrame();
+        Rectangle first = menu.selectionBounds(0);
+        Rectangle second = menu.selectionBounds(1);
+        assertEquals(RetroTheme.PINK.getRGB(), image.getRGB(frame.x + frame.width / 2, frame.y));
+        assertEquals(RetroTheme.YELLOW.getRGB(), image.getRGB(first.x + first.width / 2, first.y));
+        assertTrue(image.getRGB(second.x + second.width / 2, second.y) != RetroTheme.YELLOW.getRGB());
+        assertTrue(second.y + second.height < frame.y + frame.height);
+
+        menu.handleKey(KeyEvent.VK_DOWN);
+        image = render();
+        assertEquals(RetroTheme.YELLOW.getRGB(), image.getRGB(second.x + second.width / 2, second.y));
     }
 
     @Test

@@ -1,12 +1,11 @@
 package seoultech.se.tetris.ui.p2p;
 
-import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import java.awt.Rectangle;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.List;
@@ -16,6 +15,7 @@ import javax.swing.JPanel;
 
 import seoultech.se.tetris.ui.menu.MenuItem;
 import seoultech.se.tetris.ui.menu.StartMenuModel;
+import seoultech.se.tetris.ui.theme.RetroTheme;
 
 /**
  * P2P 대전 중의 게임 나가기 메뉴. 창의 덮개(glass pane)로 대전 화면 위에 띄운다.
@@ -29,10 +29,11 @@ public class P2PExitMenuPanel extends JPanel {
     private static final long serialVersionUID = 1L;
 
     /** 보드가 비쳐 보이도록 일시정지 메뉴보다 옅게 덮는다 */
-    static final Color DIM = new Color(0, 0, 0, 150);
-    private static final Color BOX = new Color(20, 20, 20, 235);
+    static final Color DIM = RetroTheme.withAlpha(RetroTheme.BACKGROUND_TOP, 150);
     private static final int BOX_WIDTH = 360;
     private static final int BOX_HEIGHT = 230;
+    private static final int ITEM_FIRST_BASELINE = 124;
+    private static final int ITEM_SPACING = 44;
 
     private final transient StartMenuModel model;
     private final transient Runnable onContinue;
@@ -84,42 +85,55 @@ public class P2PExitMenuPanel extends JPanel {
         repaint();
     }
 
+    /** 가운데 메뉴 틀의 위치. 창 크기에 따라 가운데에 놓는다 */
+    Rectangle menuFrame() {
+        return new Rectangle((getWidth() - BOX_WIDTH) / 2, (getHeight() - BOX_HEIGHT) / 2, BOX_WIDTH, BOX_HEIGHT);
+    }
+
+    /** {@code index}번째 항목을 선택했을 때의 강조 상자 위치 */
+    Rectangle selectionBounds(int index) {
+        Rectangle frame = menuFrame();
+        int baseline = frame.y + ITEM_FIRST_BASELINE + index * ITEM_SPACING;
+        return new Rectangle(frame.x + 24, baseline - 24, frame.width - 48, 34);
+    }
+
+    /**
+     * 보드가 비쳐 보이도록 옅게 덮고, 가운데 분홍 틀 안에 제목·안내·항목을 그린다. 선택한 항목은 시작 메뉴와 같은
+     * 노란 상자와 픽셀 화살표로 표시한다. (레트로 디자인) 게임 나가기는 기권패라 일시정지 메뉴(하늘색)와 틀 색을 달리한다.
+     */
     @Override
     protected void paintComponent(Graphics graphics) {
         super.paintComponent(graphics);
         Graphics2D g2 = (Graphics2D) graphics.create();
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        RetroTheme.applyRenderingHints(g2);
         g2.setColor(DIM);
         g2.fillRect(0, 0, getWidth(), getHeight());
 
-        int left = (getWidth() - BOX_WIDTH) / 2;
-        int top = (getHeight() - BOX_HEIGHT) / 2;
-        g2.setColor(BOX);
-        g2.fillRoundRect(left, top, BOX_WIDTH, BOX_HEIGHT, 16, 16);
-        g2.setStroke(new BasicStroke(1.5f));
-        g2.setColor(new Color(90, 90, 90));
-        g2.drawRoundRect(left, top, BOX_WIDTH, BOX_HEIGHT, 16, 16);
+        Rectangle frame = menuFrame();
+        RetroTheme.drawFrame(g2, frame.x, frame.y, frame.width, frame.height, RetroTheme.PINK);
 
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 26));
-        g2.setColor(Color.CYAN);
-        drawCentered(g2, P2PScreenTexts.EXIT_TITLE, top + 46);
+        g2.setFont(RetroTheme.mono(Font.BOLD, 26));
+        RetroTheme.drawShadowText(g2, P2PScreenTexts.EXIT_TITLE, frame.x, frame.width, frame.y + 46, 3);
 
-        g2.setFont(new Font(Font.DIALOG, Font.PLAIN, 13));
+        g2.setFont(RetroTheme.mono(Font.PLAIN, 12));
         g2.setColor(P2PPanel.SELECTED);
-        drawCentered(g2, P2PScreenTexts.EXIT_NOTE, top + 74);
+        drawCentered(g2, P2PScreenTexts.EXIT_NOTE, frame.y + 74);
 
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 20));
+        g2.setFont(RetroTheme.mono(Font.BOLD, 19));
         List<MenuItem> items = model.getItems();
         for (int i = 0; i < items.size(); i++) {
             boolean selected = i == model.getSelectedIndex();
-            g2.setColor(selected ? P2PPanel.SELECTED : Color.LIGHT_GRAY);
-            drawCentered(g2, (selected ? "▶ " : "   ") + items.get(i).label(), top + 122 + i * 40);
+            if (selected) {
+                Rectangle box = selectionBounds(i);
+                RetroTheme.drawSelection(g2, box.x, box.y, box.width, box.height);
+            }
+            g2.setColor(selected ? P2PPanel.SELECTED : RetroTheme.MUTED);
+            drawCentered(g2, items.get(i).label(), frame.y + ITEM_FIRST_BASELINE + i * ITEM_SPACING);
         }
 
-        g2.setFont(new Font(Font.DIALOG, Font.PLAIN, 12));
-        g2.setColor(model.isKeyHintVisible() ? Color.WHITE : new Color(170, 170, 170));
-        drawCentered(g2, P2PScreenTexts.EXIT_HINT, top + BOX_HEIGHT - 18);
+        g2.setFont(RetroTheme.mono(Font.PLAIN, 11));
+        g2.setColor(model.isKeyHintVisible() ? RetroTheme.TEXT : RetroTheme.MUTED);
+        drawCentered(g2, P2PScreenTexts.EXIT_HINT, frame.y + BOX_HEIGHT - 16);
         g2.dispose();
     }
 
