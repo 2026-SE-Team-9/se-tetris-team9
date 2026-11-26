@@ -236,57 +236,87 @@ public class P2PPanel extends JPanel {
     // 참여
     // ------------------------------------------------------------------
 
+    /** 참여 화면의 접속 버튼 위치 */
+    static final Rectangle CONNECT_BUTTON = new Rectangle(FIELD_LEFT, 282, FIELD_WIDTH, 34);
+    /** 참여 화면의 최근 접속 틀 위치 */
+    static final Rectangle RECENT_FRAME = new Rectangle(FIELD_LEFT - 10, 358, FIELD_WIDTH + 20, 128);
+    private static final int RECENT_ROW_HEIGHT = 20;
+
+    /**
+     * 참여. IP·포트 입력칸, 접속 버튼, 진행·오류 안내, 하늘색 틀 안의 최근 접속 목록을 그린다.
+     * 선택한 칸·버튼·기록은 노란색으로 표시한다.
+     */
     private void paintJoin(Graphics2D g2) {
         title(g2, "참여", "상대의 IP 주소와 포트를 입력하세요");
 
         field(g2, "IP 주소", state.ipText(), 160, P2PScreenState.JOIN_ROW_IP);
         field(g2, "포트", state.portText(), 228, P2PScreenState.JOIN_ROW_PORT);
+        paintConnectButton(g2);
 
-        boolean connectSelected = state.joinRow() == P2PScreenState.JOIN_ROW_CONNECT && !state.isConnecting();
-        int buttonTop = 282;
-        box(g2, FIELD_LEFT, buttonTop, FIELD_WIDTH, 34, connectSelected ? SELECTED : OUTLINE);
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 17));
-        g2.setColor(state.isConnecting() ? MUTED : connectSelected ? SELECTED : Color.WHITE);
-        drawCentered(g2, state.isConnecting() ? "접속 중..." : "접속", buttonTop + 23);
-
-        paintProgress(g2, 342);
-        paintRecent(g2, 372);
+        paintProgress(g2, 340);
+        paintRecent(g2);
         hint(g2, state.isConnecting() ? "Esc 접속 취소" : "↑ ↓ 이동   Enter 접속·선택   Esc 뒤로");
     }
 
     /** 이름표와 입력칸. 선택된 칸은 노란 테두리와 커서(_)로 표시한다. */
     private void field(Graphics2D g2, String label, String value, int top, int row) {
         boolean selected = state.joinRow() == row && !state.isConnecting();
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 14));
+        g2.setFont(RetroTheme.mono(Font.BOLD, 13));
         g2.setColor(MUTED);
         g2.drawString(label, FIELD_LEFT, top - 8);
         box(g2, FIELD_LEFT, top, FIELD_WIDTH, FIELD_HEIGHT, selected ? SELECTED : OUTLINE);
-        g2.setFont(new Font(Font.MONOSPACED, Font.BOLD, 20));
-        g2.setColor(Color.WHITE);
+        g2.setFont(RetroTheme.mono(Font.BOLD, 20));
+        g2.setColor(RetroTheme.TEXT);
         g2.drawString(value + (selected ? "_" : ""), FIELD_LEFT + 12, top + 25);
     }
 
-    /** 최근 접속 기록을 2열 5행으로, 위에서 아래로 최신순으로 그린다. */
-    private void paintRecent(Graphics2D g2, int top) {
-        g2.setFont(new Font(Font.DIALOG, Font.BOLD, 14));
+    /** 접속 버튼. 선택하면 시작 메뉴와 같은 노란 상자와 픽셀 화살표로, 접속 중이면 흐리게 그린다. */
+    private void paintConnectButton(Graphics2D g2) {
+        Rectangle button = CONNECT_BUTTON;
+        boolean selected = state.joinRow() == P2PScreenState.JOIN_ROW_CONNECT && !state.isConnecting();
+        if (selected) {
+            RetroTheme.drawSelection(g2, button.x, button.y, button.width, button.height);
+        } else {
+            box(g2, button.x, button.y, button.width, button.height, OUTLINE);
+        }
+        g2.setFont(RetroTheme.mono(Font.BOLD, 17));
+        g2.setColor(state.isConnecting() ? MUTED : selected ? SELECTED : RetroTheme.TEXT);
+        drawCentered(g2, state.isConnecting() ? "접속 중..." : "접속", button.y + 23);
+    }
+
+    /** {@code index}번째 최근 접속 기록이 그려지는 칸. 2열 5행에 위에서 아래로 최신순으로 놓는다 */
+    static Rectangle recentCell(int index) {
+        int columnWidth = FIELD_WIDTH / RECENT_COLUMNS;
+        int x = FIELD_LEFT + (index / RECENT_ROWS) * columnWidth;
+        int y = RECENT_FRAME.y + 26 + (index % RECENT_ROWS) * RECENT_ROW_HEIGHT;
+        return new Rectangle(x - 4, y, columnWidth - 4, RECENT_ROW_HEIGHT);
+    }
+
+    /** 하늘색 틀 안에 최근 접속 기록을 그린다. 선택한 기록은 옅은 노란 줄과 노란 글자로 표시한다. */
+    private void paintRecent(Graphics2D g2) {
+        Rectangle frame = RECENT_FRAME;
+        RetroTheme.drawFrame(g2, frame.x, frame.y, frame.width, frame.height, RetroTheme.CYAN);
+        g2.setFont(RetroTheme.mono(Font.BOLD, 12));
         g2.setColor(MUTED);
-        g2.drawString("최근 접속", FIELD_LEFT, top);
+        g2.drawString("최근 접속", frame.x + 14, frame.y + 20);
 
         List<RecentPeer> peers = state.recentPeers();
         if (peers.isEmpty()) {
-            g2.setFont(new Font(Font.DIALOG, Font.PLAIN, 13));
-            g2.setColor(Color.DARK_GRAY);
-            g2.drawString(P2PScreenTexts.NO_RECENT, FIELD_LEFT, top + 24);
+            g2.setFont(RetroTheme.mono(Font.PLAIN, 13));
+            g2.setColor(MUTED);
+            drawCentered(g2, P2PScreenTexts.NO_RECENT, frame.y + frame.height / 2 + 12);
             return;
         }
-        int columnWidth = FIELD_WIDTH / RECENT_COLUMNS;
-        g2.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        g2.setFont(RetroTheme.mono(Font.PLAIN, 12));
         for (int i = 0; i < Math.min(peers.size(), RECENT_COLUMNS * RECENT_ROWS); i++) {
-            int x = FIELD_LEFT + (i / RECENT_ROWS) * columnWidth;
-            int y = top + 22 + (i % RECENT_ROWS) * 20;
+            Rectangle cell = recentCell(i);
             boolean selected = state.joinRow() == P2PScreenState.JOIN_ROW_CONNECT + 1 + i && !state.isConnecting();
-            g2.setColor(selected ? SELECTED : Color.WHITE);
-            g2.drawString((selected ? "▶" : " ") + peers.get(i).text(), x, y);
+            if (selected) {
+                g2.setColor(RetroTheme.withAlpha(SELECTED, 40));
+                g2.fillRect(cell.x, cell.y, cell.width, cell.height);
+            }
+            g2.setColor(selected ? SELECTED : RetroTheme.TEXT);
+            g2.drawString(peers.get(i).text(), cell.x + 6, cell.y + 15);
         }
     }
 

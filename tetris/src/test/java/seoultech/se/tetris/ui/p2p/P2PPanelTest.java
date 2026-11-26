@@ -324,6 +324,29 @@ class P2PPanelTest {
     }
 
     @Test
+    void 참여는_선택한_접속_버튼과_최근_기록을_노란색으로_그린다() {
+        state.screen = Screen.JOIN;
+        state.recentPeers = peers(3);
+        state.joinRow = P2PScreenState.JOIN_ROW_CONNECT;
+        BufferedImage image = render();
+
+        Rectangle button = P2PPanel.CONNECT_BUTTON;
+        Rectangle frame = P2PPanel.RECENT_FRAME;
+        assertEquals(P2PPanel.SELECTED.getRGB(), image.getRGB(button.x + button.width / 2, button.y));
+        assertEquals(RetroTheme.CYAN.getRGB(), image.getRGB(frame.x + frame.width / 2, frame.y));
+        Rectangle firstPeer = P2PPanel.recentCell(0);
+        assertTrue(new Color(image.getRGB(firstPeer.x + 1, firstPeer.y + 1)).getRed() < 100);
+
+        // 첫 기록을 고르면 그 칸에 노란 줄이 깔리고 접속 버튼은 강조가 풀린다
+        state.joinRow = P2PScreenState.JOIN_ROW_CONNECT + 1;
+        image = render();
+        assertTrue(new Color(image.getRGB(firstPeer.x + 1, firstPeer.y + 1)).getRed() > 40);
+        assertTrue(image.getRGB(button.x + button.width / 2, button.y) != P2PPanel.SELECTED.getRGB());
+        // 기록은 틀 안에 들어온다
+        assertTrue(P2PPanel.recentCell(9).y + P2PPanel.recentCell(9).height <= frame.y + frame.height);
+    }
+
+    @Test
     void 상태와_동작이_있어야_만들_수_있다() {
         assertThrows(NullPointerException.class, () -> new P2PPanel(null, actions));
         assertThrows(NullPointerException.class, () -> new P2PPanel(state, null));
