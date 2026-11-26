@@ -10,6 +10,9 @@ import javax.swing.SwingUtilities;
 import seoultech.se.tetris.ui.end.EndScreenFrame;
 import seoultech.se.tetris.ui.game.GameFrame;
 import seoultech.se.tetris.ui.menu.StartMenuFrame;
+import seoultech.se.tetris.ui.p2p.P2PGameFrame;
+import seoultech.se.tetris.ui.p2p.P2PModel;
+import seoultech.se.tetris.ui.p2p.P2PPanel;
 import seoultech.se.tetris.ui.scoreboard.ScoreboardModel;
 import seoultech.se.tetris.ui.scoreboard.ScoreboardPanel;
 import seoultech.se.tetris.ui.settings.SettingsPanel;
@@ -22,6 +25,8 @@ import seoultech.se.tetris.versus.LocalMatch;
 import seoultech.se.tetris.versus.MatchResult;
 import seoultech.se.tetris.versus.VersusMatch;
 import seoultech.se.tetris.versus.VersusMode;
+import seoultech.se.tetris.versus.p2p.P2PSession;
+import seoultech.se.tetris.versus.p2p.SocketPeerConnector;
 import seoultech.se.tetris.config.AppSettings;
 import seoultech.se.tetris.config.PropertiesAppSettingsService;
 import seoultech.se.tetris.config.PropertiesBattleKeyConfigService;
@@ -38,6 +43,9 @@ public final class TetrisApplication implements ScreenNavigator {
     private VersusGameFrame versusGame;
     private VersusEndFrame versusEnd;
     private EndScreenFrame endScreen;
+    private P2PGameFrame p2pGame;
+    private P2PModel p2pModel;
+    private P2PPanel p2pPanel;
     private Difficulty currentDifficulty = Difficulty.DEFAULT;
     private GameMode currentMode = GameMode.NORMAL;
 
@@ -53,6 +61,8 @@ public final class TetrisApplication implements ScreenNavigator {
         closeGame();
         closeVersusGame();
         closeVersusEnd();
+        closeP2PGame();
+        disposeP2P();
         closeEndScreen();
         closeMenu();
         menu = new StartMenuFrame(this);
@@ -101,14 +111,76 @@ public final class TetrisApplication implements ScreenNavigator {
     }
 
     /**
-     * P2P 대전 모드 진입.
-     *
-     * <p>P2P 대전 모드 첫 화면(방 생성 / 참여)은 후속 이슈에서 연결한다.
-     * 그때까지는 시작 메뉴를 그대로 유지한다.
+     * P2P 대전 모드 진입. 같은 창에서 P2P 연결 화면(방 생성 / 참여)으로 전환한다.
      */
     @Override
     public void navigateToP2P() {
-        // P2P 대전 모드 첫 화면 연결 전까지는 시작 메뉴를 유지한다
+        closeP2PGame();
+        disposeP2P();
+        PropertiesAppSettingsService p2pSettings = new PropertiesAppSettingsService();
+        loadOrDefault(p2pSettings::load);
+        SocketPeerConnector connector = new SocketPeerConnector(SwingUtilities::invokeLater);
+        p2pModel = new P2PModel(
+                connector,
+                p2pSettings,
+                () -> savedSettings(new PropertiesAppSettingsService()).difficulty(),
+                this::returnFromP2PToMenu,
+                this::startP2PMatch,
+                reason -> returnToP2PScreen());
+        p2pPanel = new P2PPanel(p2pModel, p2pModel);
+        p2pModel.setRepaintCallback(p2pPanel::repaint);
+        menu.showP2P(p2pPanel);
+    }
+
+    private void returnFromP2PToMenu() {
+        disposeP2P();
+        if (menu != null) {
+            menu.showMenu();
+        } else {
+            navigateToMenu();
+        }
+    }
+
+    private void startP2PMatch(P2PSession session, VersusMatch match) {
+        AppSettings settings = savedSettings(new PropertiesAppSettingsService());
+        PropertiesKeyConfigService keys = new PropertiesKeyConfigService();
+        loadOrDefault(keys::load);
+        closeP2PGame();
+        if (menu != null) {
+            menu.setVisible(false);
+        }
+        p2pGame = P2PGameFrame.launch(
+                session,
+                match,
+                settings.battleScreenSize().scale(),
+                settings.battleColorBlind(),
+                keys,
+                this::returnToP2PScreen);
+    }
+
+    private void returnToP2PScreen() {
+        closeP2PGame();
+        if (p2pModel != null) {
+            p2pModel.onMatchClosed();
+        }
+        if (menu != null && p2pPanel != null) {
+            menu.showP2P(p2pPanel);
+        } else {
+            navigateToMenu();
+        }
+    }
+
+    private void closeP2PGame() {
+        close(p2pGame);
+        p2pGame = null;
+    }
+
+    private void disposeP2P() {
+        if (p2pModel != null) {
+            p2pModel.dispose();
+            p2pModel = null;
+        }
+        p2pPanel = null;
     }
 
     /**

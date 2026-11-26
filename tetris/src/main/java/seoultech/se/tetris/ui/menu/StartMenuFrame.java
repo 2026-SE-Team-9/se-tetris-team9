@@ -5,6 +5,7 @@ import javax.swing.SwingUtilities;
 
 import seoultech.se.tetris.engine.GameMode;
 import seoultech.se.tetris.ui.ScreenNavigator;
+import seoultech.se.tetris.ui.p2p.P2PPanel;
 import seoultech.se.tetris.ui.scoreboard.ScoreboardPanel;
 import seoultech.se.tetris.ui.settings.SettingsPanel;
 import seoultech.se.tetris.ui.versus.VersusModeSelectPanel;
@@ -59,6 +60,15 @@ public class StartMenuFrame extends JFrame {
         setLocationRelativeTo(null);
         setVisible(true);
         scoreboard.requestFocusInWindow();
+    }
+
+    /** 같은 창에서 P2P 대전 모드 연결 화면으로 전환한다. */
+    public void showP2P(P2PPanel p2pPanel) {
+        setContentPane(p2pPanel);
+        pack();
+        setLocationRelativeTo(null);
+        setVisible(true);
+        p2pPanel.requestFocusInWindow();
     }
 
     public static void main(String[] args) {
