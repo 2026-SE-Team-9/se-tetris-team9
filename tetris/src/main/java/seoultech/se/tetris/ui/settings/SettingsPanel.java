@@ -516,6 +516,13 @@ public final class SettingsPanel extends JPanel {
     }
 
     /** 일반 모드 탭 또는 로컬 대전 탭을 고른다. */
+    /** P2P 대전 탭을 선택한다. */
+    public void selectP2PTab() {
+        if (context.allowsP2PSettings()) {
+            selectTab(Tab.P2P);
+        }
+    }
+
     void selectTab(boolean battle) {
         selectTab(battle ? Tab.LOCAL_BATTLE : Tab.SINGLE);
     }

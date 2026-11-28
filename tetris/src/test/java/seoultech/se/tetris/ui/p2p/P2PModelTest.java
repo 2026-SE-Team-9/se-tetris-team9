@@ -299,4 +299,90 @@ class P2PModelTest {
         assertEquals(Screen.MENU, clientModel.screen());
         assertEquals(CloseReason.PEER_LEFT, clientModel.closeReason());
     }
+
+    @Test
+    void copyAddressPasteIpPortAndOpenSettingsOnPortFailure() {
+        StubConnector connector = new StubConnector();
+        InMemoryP2PSettingsService settings = new InMemoryP2PSettingsService();
+        settings.setPort(24700);
+        AtomicReference<String> copied = new AtomicReference<>();
+        AtomicBoolean settingsOpened = new AtomicBoolean();
+        P2PModel model = new P2PModel(connector, settings, () -> Difficulty.NORMAL,
+                () -> { }, (s, m) -> { }, r -> { },
+                copied::set, () -> settingsOpened.set(true), () -> true);
+
+        // 방 생성에서 Ctrl+C 복사
+        model.select();
+        assertFalse(model.isAddressCopied());
+        model.copy();
+        assertTrue(model.isAddressCopied());
+        assertEquals("192.168.0.10:24700", copied.get());
+
+        // 대기 중에도 S로 설정 열기 가능 (기존 대기는 취소)
+        model.openSettings();
+        assertTrue(settingsOpened.get());
+        assertTrue(connector.hostCancelled);
+
+        // 포트 충돌 시에도 S로 설정 열기 후 변경된 포트로 재시도
+        settingsOpened.set(false);
+        model.retryHosting();
+        connector.lastListener.onFailed(FailReason.PORT_UNAVAILABLE);
+        model.openSettings();
+        assertTrue(settingsOpened.get());
+
+        settings.setPort(25555);
+        model.retryHosting();
+        assertEquals(25555, model.hostPort());
+        assertFalse(model.isAddressCopied());
+
+        // 참여 화면에서 Ctrl+V로 IP:포트 한 번에 붙여넣기
+        model.back();
+        model.down();
+        model.select();
+        model.paste("192.168.0.10:25555");
+        assertEquals("192.168.0.10", model.ipText());
+        assertEquals("25555", model.portText());
+    }
+
+    @Test
+    void waitingRoomBackRequiresConfirmation() throws Exception {
+        Executor direct = Runnable::run;
+        SocketPeerConnector serverConnector = new SocketPeerConnector(direct);
+        SocketPeerConnector clientConnector = new SocketPeerConnector(direct);
+
+        P2PSettingsService serverSettings = ephemeralPortSettings();
+        InMemoryP2PSettingsService clientSettings = new InMemoryP2PSettingsService();
+
+        AtomicBoolean allowLeave = new AtomicBoolean(false);
+        P2PModel serverModel = new P2PModel(serverConnector, serverSettings, () -> Difficulty.NORMAL,
+                () -> { }, (s, m) -> { }, r -> { },
+                s -> { }, () -> { }, allowLeave::get);
+        P2PModel clientModel = new P2PModel(clientConnector, clientSettings, () -> Difficulty.NORMAL,
+                () -> { }, (s, m) -> { }, r -> { });
+
+        serverModel.select();
+        int port = serverModel.hostPort();
+        clientModel.down();
+        clientModel.select();
+        clientModel.paste("127.0.0.1:" + port);
+        clientModel.down();
+        clientModel.down();
+        clientModel.select();
+
+        long deadline = System.currentTimeMillis() + 5000;
+        while (serverModel.screen() != Screen.WAITING_ROOM && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20);
+        }
+        assertEquals(Screen.WAITING_ROOM, serverModel.screen());
+
+        // 확인 팝업에서 '아니오' 선택 시 대기실 유지
+        serverModel.back();
+        assertEquals(Screen.WAITING_ROOM, serverModel.screen());
+
+        // '예' 선택 시 나가기
+        allowLeave.set(true);
+        serverModel.back();
+        assertEquals(Screen.MENU, serverModel.screen());
+        clientModel.dispose();
+    }
 }

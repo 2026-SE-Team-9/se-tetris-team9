@@ -75,6 +75,11 @@ public interface P2PScreenState {
     /** 기다리는 포트 */
     int hostPort();
 
+    /** 방 주소를 방금 클립보드에 복사했는지 */
+    default boolean isAddressCopied() {
+        return false;
+    }
+
     // ---------- 참여 ----------
 
     String ipText();

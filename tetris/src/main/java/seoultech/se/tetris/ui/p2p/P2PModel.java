@@ -3,6 +3,7 @@ package seoultech.se.tetris.ui.p2p;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -47,6 +48,9 @@ public final class P2PModel implements P2PScreenState, P2PScreenActions {
     private final Runnable onBackToMainMenu;
     private final BiConsumer<P2PSession, VersusMatch> onMatchStarted;
     private final Consumer<CloseReason> onMatchAborted;
+    private final Consumer<String> clipboardWriter;
+    private final Runnable onOpenSettings;
+    private final BooleanSupplier confirmLeaveWaitingRoom;
 
     private Runnable repaintCallback = () -> { };
 
@@ -60,6 +64,7 @@ public final class P2PModel implements P2PScreenState, P2PScreenActions {
     private Hosting hosting;
     private List<String> hostAddresses = List.of();
     private int hostPort = P2PSettingsService.DEFAULT_PORT;
+    private boolean addressCopied;
 
     private Pending pending;
     private String ipText = "";
@@ -78,12 +83,26 @@ public final class P2PModel implements P2PScreenState, P2PScreenActions {
             Supplier<Difficulty> initialDifficulty, Runnable onBackToMainMenu,
             BiConsumer<P2PSession, VersusMatch> onMatchStarted,
             Consumer<CloseReason> onMatchAborted) {
+        this(connector, settings, initialDifficulty, onBackToMainMenu, onMatchStarted, onMatchAborted,
+                text -> { }, () -> { }, () -> true);
+    }
+
+    public P2PModel(PeerConnector connector, P2PSettingsService settings,
+            Supplier<Difficulty> initialDifficulty, Runnable onBackToMainMenu,
+            BiConsumer<P2PSession, VersusMatch> onMatchStarted,
+            Consumer<CloseReason> onMatchAborted,
+            Consumer<String> clipboardWriter,
+            Runnable onOpenSettings,
+            BooleanSupplier confirmLeaveWaitingRoom) {
         this.connector = Objects.requireNonNull(connector, "connector");
         this.settings = Objects.requireNonNull(settings, "settings");
         this.initialDifficulty = Objects.requireNonNull(initialDifficulty, "initialDifficulty");
         this.onBackToMainMenu = Objects.requireNonNull(onBackToMainMenu, "onBackToMainMenu");
         this.onMatchStarted = Objects.requireNonNull(onMatchStarted, "onMatchStarted");
         this.onMatchAborted = Objects.requireNonNull(onMatchAborted, "onMatchAborted");
+        this.clipboardWriter = Objects.requireNonNull(clipboardWriter, "clipboardWriter");
+        this.onOpenSettings = Objects.requireNonNull(onOpenSettings, "onOpenSettings");
+        this.confirmLeaveWaitingRoom = Objects.requireNonNull(confirmLeaveWaitingRoom, "confirmLeaveWaitingRoom");
     }
 
     /** 상태가 바뀔 때 화면을 다시 그릴 콜백을 연결한다. */
@@ -110,6 +129,13 @@ public final class P2PModel implements P2PScreenState, P2PScreenActions {
         repaint();
     }
 
+    /** 설정 화면에서 돌아온 뒤 변경된 포트로 방 생성을 다시 시도한다. */
+    public void retryHosting() {
+        if (screen == Screen.HOST) {
+            startHosting();
+        }
+    }
+
     /** 진행 중인 연결이나 세션을 정리한다. */
     public void dispose() {
         cancelHosting();
@@ -132,6 +158,7 @@ public final class P2PModel implements P2PScreenState, P2PScreenActions {
     @Override public FailReason failure() { return failure; }
     @Override public List<String> hostAddresses() { return hostAddresses; }
     @Override public int hostPort() { return hostPort; }
+    @Override public boolean isAddressCopied() { return addressCopied; }
     @Override public String ipText() { return ipText; }
     @Override public String portText() { return portText; }
     @Override public int joinRow() { return joinRow; }
@@ -268,6 +295,9 @@ public final class P2PModel implements P2PScreenState, P2PScreenActions {
                 }
             }
             case WAITING_ROOM -> {
+                if (!confirmLeaveWaitingRoom.getAsBoolean() || screen != Screen.WAITING_ROOM) {
+                    return;
+                }
                 if (session != null) {
                     P2PSession active = session;
                     session = null;
@@ -318,6 +348,76 @@ public final class P2PModel implements P2PScreenState, P2PScreenActions {
         }
     }
 
+    @Override
+    public void copy() {
+        if (screen != Screen.HOST || hostAddresses.isEmpty()) {
+            return;
+        }
+        clipboardWriter.accept(hostAddresses.get(0) + ":" + hostPort);
+        addressCopied = true;
+        repaint();
+    }
+
+    @Override
+    public void paste(String text) {
+        if (screen != Screen.JOIN || connecting || text == null) {
+            return;
+        }
+        String trimmed = text.strip();
+        int colon = trimmed.indexOf(':');
+        if (colon >= 0) {
+            String hostPart = filterIpChars(trimmed.substring(0, colon), 15);
+            String portPart = filterDigits(trimmed.substring(colon + 1), 5);
+            if (!hostPart.isEmpty()) {
+                ipText = hostPart;
+            }
+            if (!portPart.isEmpty()) {
+                portText = portPart;
+            }
+        } else if (joinRow == JOIN_ROW_IP) {
+            String filtered = filterIpChars(ipText + trimmed, 15);
+            ipText = filtered;
+        } else if (joinRow == JOIN_ROW_PORT) {
+            String filtered = filterDigits(portText + trimmed, 5);
+            portText = filtered;
+        } else {
+            return;
+        }
+        inputError = null;
+        failure = null;
+        repaint();
+    }
+
+    @Override
+    public void openSettings() {
+        if (screen == Screen.HOST) {
+            cancelHosting();
+            onOpenSettings.run();
+        }
+    }
+
+    private static String filterIpChars(String raw, int maxLen) {
+        StringBuilder sb = new StringBuilder(maxLen);
+        for (int i = 0; i < raw.length() && sb.length() < maxLen; i++) {
+            char c = raw.charAt(i);
+            if (Character.isDigit(c) || c == '.') {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String filterDigits(String raw, int maxLen) {
+        StringBuilder sb = new StringBuilder(maxLen);
+        for (int i = 0; i < raw.length() && sb.length() < maxLen; i++) {
+            char c = raw.charAt(i);
+            if (Character.isDigit(c)) {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
     // ------------------------------------------------------------------
     // 화면별 동작
     // ------------------------------------------------------------------
@@ -337,6 +437,7 @@ public final class P2PModel implements P2PScreenState, P2PScreenActions {
         screen = Screen.HOST;
         step = null;
         failure = null;
+        addressCopied = false;
         hostPort = settings.port();
         hostAddresses = List.of();
         hosting = connector.host(hostPort, new ConnectListener() {
@@ -530,6 +631,7 @@ public final class P2PModel implements P2PScreenState, P2PScreenActions {
         step = null;
         failure = null;
         inputError = null;
+        addressCopied = false;
         connecting = false;
         inMatch = false;
         pendingCloseReason = null;

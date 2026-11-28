@@ -50,7 +50,7 @@ public final class P2PScreenTexts {
     /** 연결하지 못한 이유 */
     public static String failure(FailReason reason, int port) {
         return switch (reason) {
-            case PORT_UNAVAILABLE -> "포트 " + port + "을(를) 열 수 없습니다. 설정에서 다른 포트를 지정하세요";
+            case PORT_UNAVAILABLE -> "포트 " + port + "을(를) 열 수 없습니다.\nS를 눌러 설정에서 다른 포트를 지정하세요";
             case INVALID_ADDRESS -> "주소 형식이 올바르지 않습니다. 다시 입력하세요";
             case UNREACHABLE -> "서버에 접속할 수 없습니다. IP와 포트를 확인하고 다시 입력하세요";
             case VERSION_MISMATCH -> "상대 프로그램의 버전이 달라 연결할 수 없습니다";

@@ -1,10 +1,13 @@
 package seoultech.se.tetris.ui;
 
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.io.UncheckedIOException;
 import java.util.Objects;
 import java.util.Random;
 
 import javax.swing.JFrame;
+import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
 import seoultech.se.tetris.ui.end.EndScreenFrame;
@@ -126,10 +129,52 @@ public final class TetrisApplication implements ScreenNavigator {
                 () -> savedSettings(new PropertiesAppSettingsService()).difficulty(),
                 this::returnFromP2PToMenu,
                 this::startP2PMatch,
-                reason -> returnToP2PScreen());
+                reason -> returnToP2PScreen(),
+                TetrisApplication::copyToClipboard,
+                () -> openP2PSettings(p2pSettings),
+                this::confirmLeaveP2PWaitingRoom);
         p2pPanel = new P2PPanel(p2pModel, p2pModel);
         p2pModel.setRepaintCallback(p2pPanel::repaint);
         menu.showP2P(p2pPanel);
+    }
+
+    private static void copyToClipboard(String text) {
+        try {
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
+        } catch (IllegalStateException ignored) {
+            // 클립보드 접근 불가 시 무시
+        }
+    }
+
+    private void openP2PSettings(PropertiesAppSettingsService p2pSettings) {
+        if (menu == null) {
+            return;
+        }
+        PropertiesKeyConfigService keys = new PropertiesKeyConfigService();
+        loadOrDefault(keys::load);
+        PropertiesBattleKeyConfigService battleKeys = new PropertiesBattleKeyConfigService();
+        loadOrDefault(battleKeys::load);
+        SettingsPanel settingsPanel = new SettingsPanel(
+                p2pSettings, keys, battleKeys, p2pSettings, new CsvScoreRepository(),
+                SettingsPanel.Context.START_MENU, () -> { }, () -> { }, () -> {
+                    loadOrDefault(p2pSettings::load);
+                    if (menu != null && p2pPanel != null && p2pModel != null) {
+                        menu.showP2P(p2pPanel);
+                        p2pModel.retryHosting();
+                    }
+                });
+        settingsPanel.selectP2PTab();
+        menu.showSettings(settingsPanel);
+    }
+
+    private boolean confirmLeaveP2PWaitingRoom() {
+        int choice = JOptionPane.showConfirmDialog(
+                menu,
+                "대기실을 나가시겠습니까? 상대와의 연결이 끊어집니다.",
+                "대기실 나가기",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        return choice == JOptionPane.YES_OPTION;
     }
 
     private void returnFromP2PToMenu() {
