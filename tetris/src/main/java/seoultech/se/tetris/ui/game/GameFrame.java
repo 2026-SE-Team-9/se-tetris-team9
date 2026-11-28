@@ -6,7 +6,6 @@ import java.io.UncheckedIOException;
 import java.util.function.IntConsumer;
 
 import javax.swing.JFrame;
-import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 
 import seoultech.se.tetris.component.listener.GameEventListener;
@@ -21,6 +20,7 @@ import seoultech.se.tetris.score.CsvScoreRepository;
 import seoultech.se.tetris.ui.GameKeyInput;
 import seoultech.se.tetris.ui.TetrisApplication;
 import seoultech.se.tetris.ui.settings.SettingsPanel;
+import seoultech.se.tetris.ui.theme.RetroConfirmDialog;
 
 /**
  * 게임 화면을 담는 창. 앱 진입 또는 단독 실행 시 엔진·자동 낙하·키 입력을 연결한다.
@@ -135,10 +135,9 @@ public class GameFrame extends JFrame {
             frame.setLocationRelativeTo(null);
         };
         Runnable returnToTitle = () -> {
-            int choice = JOptionPane.showConfirmDialog(frame,
-                    "현재 게임 진행 상황이 사라집니다. 타이틀로 돌아가시겠습니까?",
-                    "타이틀로 돌아가기", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-            if (choice == JOptionPane.YES_OPTION) {
+            // 확인 창은 게임 화면과 같은 레트로 디자인으로 띄운다
+            if (RetroConfirmDialog.confirm(frame, "타이틀로 돌아가기",
+                    "현재 게임 진행 상황이 사라집니다. 타이틀로 돌아가시겠습니까?")) {
                 engine.exitGame();
                 frame.dispose();
                 onReturnToTitle.run();
